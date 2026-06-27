@@ -1,20 +1,28 @@
-import { useEffect, useState } from "react"
-import { auth, db } from "../firebase"
-import { doc, getDoc } from "firebase/firestore"
+import { useEffect, useState } from "react";
+import { auth } from "../firebase";
+import { getUserRole } from "../services/userService";
 
 export default function useRole() {
-  const [role, setRole] = useState(null)
+  const [role, setRole] = useState(null);
 
   useEffect(() => {
-    const load = async () => {
-      if (!auth.currentUser) return
+    const unsubscribe = auth.onAuthStateChanged(async (user) => {
+      if (!user) {
+        setRole(null);
+        return;
+      }
 
-      const snap = await getDoc(doc(db, "users", auth.currentUser.uid))
-      setRole(snap.exists() ? snap.data().role : "user")
-    }
+      try {
+        const userRole = await getUserRole(user.uid);
+        setRole(userRole);
+      } catch (error) {
+        console.error("Failed to get user role:", error);
+        setRole("user");
+      }
+    });
 
-    load()
-  }, [])
+    return () => unsubscribe();
+  }, []);
 
-  return role
+  return role;
 }

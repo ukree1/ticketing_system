@@ -26,29 +26,30 @@ export default function Tickets() {
 
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    let unsub = null
+useEffect(() => {
+  let unsubscribe = () => {};
 
-    const init = async () => {
-      const user = auth.currentUser
-      if (!user) {
-        setLoading(false)
-        return
-      }
-
-      unsub = await listenToTickets((data) => {
-        setTickets(data)
-        setFilteredTickets(data)
-        setLoading(false)
-      }, user)
+  const authUnsub = auth.onAuthStateChanged(async (user) => {
+    if (!user) {
+      setLoading(false);
+      return;
     }
 
-    init()
+    unsubscribe = await listenToTickets(
+      (data) => {
+        setTickets(data);
+        setFilteredTickets(data);
+        setLoading(false);
+      },
+      user
+    );
+  });
 
-    return () => {
-      if (unsub) unsub()
-    }
-  }, [])
+  return () => {
+    authUnsub();
+    unsubscribe();
+  };
+}, []);
 
   const handleCreate = async () => {
     if (!title.trim() || !description.trim()) return

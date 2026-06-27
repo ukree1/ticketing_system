@@ -1,4 +1,4 @@
-import { db } from "../firebase"
+import { db } from "../firebase";
 import {
   collection,
   addDoc,
@@ -9,21 +9,22 @@ import {
   serverTimestamp,
   onSnapshot,
   query,
-  orderBy
-} from "firebase/firestore"
+  orderBy,
+  where
+} from "firebase/firestore";
 
-import { getUserRole } from "./userService"
+import { getUserRole } from "./userService";
 
-const colRef = collection(db, "tickets")
+const colRef = collection(db, "tickets");
 
 // =======================
-// CREATE TICKET (FIXED)
+// CREATE TICKET
 // =======================
 export const createTicket = async (data) => {
-  const { auth } = await import("../firebase")
-  const user = auth.currentUser
+  const { auth } = await import("../firebase");
+  const user = auth.currentUser;
 
-  if (!user) throw new Error("No authenticated user")
+  if (!user) throw new Error("No authenticated user");
 
   return await addDoc(colRef, {
     title: data.title,
@@ -37,95 +38,101 @@ export const createTicket = async (data) => {
     assignedTo: "",
     createdAt: serverTimestamp(),
     updatedAt: null
-  })
-}
+  });
+};
 
 // =======================
 // GET ALL (OPTIONAL)
 // =======================
 export const getTickets = async () => {
-  const snap = await getDocs(colRef)
+  const snap = await getDocs(colRef);
 
-  return snap.docs.map(doc => ({
+  return snap.docs.map((doc) => ({
     id: doc.id,
     ...doc.data()
-  }))
-}
+  }));
+};
 
 // =======================
-// REALTIME LISTENER (ROLE BASED)
+// REALTIME LISTENER (FIXED)
 // =======================
 export const listenToTickets = async (callback, user) => {
-  if (!user) return () => {}
+  if (!user) return () => {};
 
-  const role = await getUserRole(user.uid)
+  const role = await getUserRole(user.uid);
 
-  const q = query(colRef, orderBy("createdAt", "desc"))
+  let q;
 
-  const unsubscribe = onSnapshot(q, (snapshot) => {
-    const allTickets = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }))
+  // ADMIN → all tickets
+  if (role === "admin") {
+    q = query(colRef, orderBy("createdAt", "desc"));
+  } 
+  // USER → only own tickets
+  else {
+    q = query(
+      colRef,
+      where("createdBy", "==", user.uid),
+      orderBy("createdAt", "desc")
+    );
+  }
 
-    // ADMIN → ALL TICKETS
-    if (role === "admin") {
-      callback(allTickets)
-      return
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const tickets = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+
+      callback(tickets);
+    },
+    (error) => {
+      console.error("Firestore Listener Error:", error);
     }
-
-    // USER → OWN TICKETS ONLY
-    const filtered = allTickets.filter(
-      (t) => t.createdBy === user.uid
-    )
-
-    callback(filtered)
-  })
-
-  return unsubscribe
-}
+  );
+};
 
 // =======================
 // UPDATE
 // =======================
 export const updateTicket = async (id, data) => {
-  const ref = doc(db, "tickets", id)
+  const ref = doc(db, "tickets", id);
 
   return await updateDoc(ref, {
     ...data,
     updatedAt: serverTimestamp()
-  })
-}
+  });
+};
 
 // =======================
 // STATUS UPDATE
 // =======================
 export const updateTicketStatus = async (id, status) => {
-  const ref = doc(db, "tickets", id)
+  const ref = doc(db, "tickets", id);
 
   return await updateDoc(ref, {
     status,
     updatedAt: serverTimestamp()
-  })
-}
+  });
+};
 
 // =======================
 // ASSIGN
 // =======================
 export const assignTicket = async (id, email) => {
-  const ref = doc(db, "tickets", id)
+  const ref = doc(db, "tickets", id);
 
   return await updateDoc(ref, {
     assignedTo: email,
     updatedAt: serverTimestamp()
-  })
-}
+  });
+};
 
 // =======================
 // DELETE
 // =======================
 export const deleteTicket = async (id) => {
-  const ref = doc(db, "tickets", id)
+  const ref = doc(db, "tickets", id);
 
-  return await deleteDoc(ref)
-}
+  return await deleteDoc(ref);
+};

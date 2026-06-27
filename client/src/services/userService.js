@@ -1,4 +1,4 @@
-import { db } from "../firebase"
+import { db, auth } from "../firebase";
 import {
   doc,
   setDoc,
@@ -7,138 +7,178 @@ import {
   updateDoc,
   deleteDoc,
   collection,
-  serverTimestamp
-} from "firebase/firestore"
+  serverTimestamp,
+} from "firebase/firestore";
 
-const ADMIN_EMAIL = "admin@ticketing.com"
+const ADMIN_EMAIL = "admin@ticketing.com";
 
-// ==========================
-// SIMPLE CACHE
-// ==========================
-const userCache = {}
+const userCache = {};
 
 // ==========================
-// CREATE USER PROFILE (ADMIN LOCK FIX)
+// CREATE USER PROFILE
 // ==========================
 export const createUserProfile = async (user) => {
-  const role =
-    user.email === ADMIN_EMAIL ? "admin" : "user"
+  if (!user) return;
 
-  await setDoc(doc(db, "users", user.uid), {
+  const ref = doc(db, "users", user.uid);
+  const snap = await getDoc(ref);
+
+  // Don't overwrite an existing profile
+  if (snap.exists()) return;
+
+  const role =
+    user.email === ADMIN_EMAIL ? "admin" : "user";
+
+  await setDoc(ref, {
     email: user.email,
     role,
     disabled: false,
-    createdAt: serverTimestamp()
-  })
-}
+    createdAt: serverTimestamp(),
+  });
+};
 
 // ==========================
-// GET USER ROLE (SAFE + ADMIN PROTECTION)
+// GET USER ROLE
+// Auto-create profile if missing
 // ==========================
 export const getUserRole = async (uid) => {
-  if (!uid) return "user"
+  if (!uid) return "user";
 
-  const snap = await getDoc(doc(db, "users", uid))
+  const ref = doc(db, "users", uid);
+  const snap = await getDoc(ref);
 
-  if (!snap.exists()) return "user"
+  if (!snap.exists()) {
+    const currentUser = auth.currentUser;
 
-  const data = snap.data()
+    if (currentUser && currentUser.uid === uid) {
+      const role =
+        currentUser.email === ADMIN_EMAIL
+          ? "admin"
+          : "user";
 
-  // 🔥 HARD LOCK: admin email is always admin
-  if (data.email === ADMIN_EMAIL) {
-    return "admin"
+      await setDoc(ref, {
+        email: currentUser.email,
+        role,
+        disabled: false,
+        createdAt: serverTimestamp(),
+      });
+
+      return role;
+    }
+
+    return "user";
   }
 
-  return data.role || "user"
-}
+  const data = snap.data();
+
+  // Always protect the main admin account
+  if (data.email === ADMIN_EMAIL) {
+    return "admin";
+  }
+
+  return data.role || "user";
+};
 
 // ==========================
-// GET USER EMAIL (CACHE + SAFE)
+// GET USER EMAIL
 // ==========================
 export const getUserEmail = async (uid) => {
-  if (!uid) return "Unknown User"
+  if (!uid) return "Unknown User";
 
-  if (userCache[uid]) return userCache[uid]
+  if (userCache[uid]) {
+    return userCache[uid];
+  }
 
-  const snap = await getDoc(doc(db, "users", uid))
+  const snap = await getDoc(doc(db, "users", uid));
 
-  if (!snap.exists()) return "Unknown User"
+  if (!snap.exists()) {
+    return "Unknown User";
+  }
 
-  const email = snap.data().email || "Unknown User"
+  const email = snap.data().email || "Unknown User";
 
-  userCache[uid] = email
+  userCache[uid] = email;
 
-  return email
-}
+  return email;
+};
 
 // ==========================
 // GET ALL USERS
 // ==========================
 export const getUsers = async () => {
-  const snap = await getDocs(collection(db, "users"))
+  const snap = await getDocs(collection(db, "users"));
 
-  return snap.docs.map(doc => ({
+  return snap.docs.map((doc) => ({
     id: doc.id,
-    ...doc.data()
-  }))
-}
+    ...doc.data(),
+  }));
+};
 
 // ==========================
-// UPDATE ROLE (PROTECTED)
+// UPDATE ROLE
 // ==========================
 export const updateUserRole = async (uid, role) => {
-  const snap = await getDoc(doc(db, "users", uid))
+  const ref = doc(db, "users", uid);
+  const snap = await getDoc(ref);
 
-  if (snap.exists()) {
-    const user = snap.data()
-
-    // 🚫 BLOCK CHANGING ADMIN EMAIL ROLE
-    if (user.email === ADMIN_EMAIL) {
-      throw new Error("Cannot modify main admin account")
-    }
+  if (!snap.exists()) {
+    throw new Error("User not found");
   }
 
-  await updateDoc(doc(db, "users", uid), {
+  const user = snap.data();
+
+  if (user.email === ADMIN_EMAIL) {
+    throw new Error("Cannot modify main admin account");
+  }
+
+  await updateDoc(ref, {
     role,
-    updatedAt: serverTimestamp()
-  })
-}
+    updatedAt: serverTimestamp(),
+  });
+};
 
 // ==========================
-// ENABLE / DISABLE USER (PROTECTED)
+// ENABLE / DISABLE USER
 // ==========================
-export const toggleUserStatus = async (uid, disabled) => {
-  const snap = await getDoc(doc(db, "users", uid))
+export const toggleUserStatus = async (
+  uid,
+  disabled
+) => {
+  const ref = doc(db, "users", uid);
+  const snap = await getDoc(ref);
 
-  if (snap.exists()) {
-    const user = snap.data()
-
-    // 🚫 BLOCK DISABLING ADMIN
-    if (user.email === ADMIN_EMAIL) {
-      throw new Error("Cannot disable admin account")
-    }
+  if (!snap.exists()) {
+    throw new Error("User not found");
   }
 
-  await updateDoc(doc(db, "users", uid), {
+  const user = snap.data();
+
+  if (user.email === ADMIN_EMAIL) {
+    throw new Error("Cannot disable admin account");
+  }
+
+  await updateDoc(ref, {
     disabled,
-    updatedAt: serverTimestamp()
-  })
-}
+    updatedAt: serverTimestamp(),
+  });
+};
 
 // ==========================
-// DELETE USER (PROTECTED)
+// DELETE USER
 // ==========================
 export const deleteUser = async (uid) => {
-  const snap = await getDoc(doc(db, "users", uid))
+  const ref = doc(db, "users", uid);
+  const snap = await getDoc(ref);
 
-  if (snap.exists()) {
-    const user = snap.data()
-
-    // 🚫 BLOCK DELETING ADMIN
-    if (user.email === ADMIN_EMAIL) {
-      throw new Error("Cannot delete admin account")
-    }
+  if (!snap.exists()) {
+    throw new Error("User not found");
   }
 
-  await deleteDoc(doc(db, "users", uid))
-}
+  const user = snap.data();
+
+  if (user.email === ADMIN_EMAIL) {
+    throw new Error("Cannot delete admin account");
+  }
+
+  await deleteDoc(ref);
+};
