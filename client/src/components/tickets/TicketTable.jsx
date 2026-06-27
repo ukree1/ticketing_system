@@ -1,4 +1,5 @@
-import TicketRow from "./TicketRow"
+import TicketRow from "./TicketRow";
+import { useTheme } from "../../context/ThemeContext";
 
 export default function TicketTable({
   tickets,
@@ -6,16 +7,25 @@ export default function TicketTable({
   role,
   onEdit
 }) {
-  return (
-    <div className="bg-white rounded-xl shadow overflow-hidden">
+  const { darkMode } = useTheme();
 
+  return (
+    <div
+      className={`rounded-xl shadow overflow-hidden transition ${
+        darkMode ? "bg-gray-900" : "bg-white"
+      }`}
+    >
       <div className="overflow-x-auto">
 
         <table className="min-w-full">
 
-          <thead className="bg-gray-100">
-
-            <tr className="text-left text-gray-700">
+          {/* HEADER */}
+          <thead
+            className={
+              darkMode ? "bg-gray-800 text-gray-200" : "bg-gray-100 text-gray-700"
+            }
+          >
+            <tr className="text-left">
 
               <th className="px-4 py-3 font-semibold">
                 Title
@@ -46,21 +56,28 @@ export default function TicketTable({
               </th>
 
             </tr>
-
           </thead>
 
-          <tbody>
-
+          {/* BODY */}
+          <tbody
+            className={
+              darkMode ? "text-gray-200" : "text-gray-800"
+            }
+          >
             {tickets.length === 0 ? (
-
               <tr>
-                <td colSpan={7} className="text-center py-10 text-gray-500">
+                <td
+                  colSpan={7}
+                  className={
+                    darkMode
+                      ? "text-center py-10 text-gray-400"
+                      : "text-center py-10 text-gray-500"
+                  }
+                >
                   No tickets found.
                 </td>
               </tr>
-
             ) : (
-
               tickets.map((ticket) => (
                 <TicketRow
                   key={ticket.id}
@@ -70,15 +87,12 @@ export default function TicketTable({
                   onEdit={onEdit}
                 />
               ))
-
             )}
-
           </tbody>
 
         </table>
 
       </div>
-
     </div>
-  )
+  );
 }

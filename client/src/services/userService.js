@@ -23,23 +23,24 @@ export const createUserProfile = async (user) => {
   const ref = doc(db, "users", user.uid);
   const snap = await getDoc(ref);
 
-  // Don't overwrite an existing profile
   if (snap.exists()) return;
 
-  const role =
-    user.email === ADMIN_EMAIL ? "admin" : "user";
+  const role = user.email === ADMIN_EMAIL ? "admin" : "user";
 
   await setDoc(ref, {
     email: user.email,
     role,
     disabled: false,
+
+    // default settings
+    theme: "light",
+
     createdAt: serverTimestamp(),
   });
 };
 
 // ==========================
 // GET USER ROLE
-// Auto-create profile if missing
 // ==========================
 export const getUserRole = async (uid) => {
   if (!uid) return "user";
@@ -52,14 +53,13 @@ export const getUserRole = async (uid) => {
 
     if (currentUser && currentUser.uid === uid) {
       const role =
-        currentUser.email === ADMIN_EMAIL
-          ? "admin"
-          : "user";
+        currentUser.email === ADMIN_EMAIL ? "admin" : "user";
 
       await setDoc(ref, {
         email: currentUser.email,
         role,
         disabled: false,
+        theme: "light",
         createdAt: serverTimestamp(),
       });
 
@@ -71,12 +71,40 @@ export const getUserRole = async (uid) => {
 
   const data = snap.data();
 
-  // Always protect the main admin account
-  if (data.email === ADMIN_EMAIL) {
-    return "admin";
-  }
+  if (data.email === ADMIN_EMAIL) return "admin";
 
   return data.role || "user";
+};
+
+// ==========================
+// GET USER PROFILE (NEW)
+// ==========================
+export const getUserProfile = async (uid) => {
+  if (!uid) return null;
+
+  const ref = doc(db, "users", uid);
+  const snap = await getDoc(ref);
+
+  if (!snap.exists()) return null;
+
+  return {
+    id: snap.id,
+    ...snap.data(),
+  };
+};
+
+// ==========================
+// UPDATE USER SETTINGS (NEW)
+// ==========================
+export const updateUserSettings = async (uid, data) => {
+  if (!uid) throw new Error("Missing UID");
+
+  const ref = doc(db, "users", uid);
+
+  return await updateDoc(ref, {
+    ...data,
+    updatedAt: serverTimestamp(),
+  });
 };
 
 // ==========================
@@ -85,15 +113,11 @@ export const getUserRole = async (uid) => {
 export const getUserEmail = async (uid) => {
   if (!uid) return "Unknown User";
 
-  if (userCache[uid]) {
-    return userCache[uid];
-  }
+  if (userCache[uid]) return userCache[uid];
 
   const snap = await getDoc(doc(db, "users", uid));
 
-  if (!snap.exists()) {
-    return "Unknown User";
-  }
+  if (!snap.exists()) return "Unknown User";
 
   const email = snap.data().email || "Unknown User";
 
@@ -121,9 +145,7 @@ export const updateUserRole = async (uid, role) => {
   const ref = doc(db, "users", uid);
   const snap = await getDoc(ref);
 
-  if (!snap.exists()) {
-    throw new Error("User not found");
-  }
+  if (!snap.exists()) throw new Error("User not found");
 
   const user = snap.data();
 
@@ -140,16 +162,11 @@ export const updateUserRole = async (uid, role) => {
 // ==========================
 // ENABLE / DISABLE USER
 // ==========================
-export const toggleUserStatus = async (
-  uid,
-  disabled
-) => {
+export const toggleUserStatus = async (uid, disabled) => {
   const ref = doc(db, "users", uid);
   const snap = await getDoc(ref);
 
-  if (!snap.exists()) {
-    throw new Error("User not found");
-  }
+  if (!snap.exists()) throw new Error("User not found");
 
   const user = snap.data();
 
@@ -170,9 +187,7 @@ export const deleteUser = async (uid) => {
   const ref = doc(db, "users", uid);
   const snap = await getDoc(ref);
 
-  if (!snap.exists()) {
-    throw new Error("User not found");
-  }
+  if (!snap.exists()) throw new Error("User not found");
 
   const user = snap.data();
 

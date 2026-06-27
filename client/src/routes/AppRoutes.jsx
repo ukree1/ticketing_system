@@ -1,24 +1,26 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom"
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 
-import Login from "../pages/Login"
-import Register from "../pages/Register"
-import Dashboard from "../pages/Dashboard"
-import Tickets from "../pages/Tickets"
-import Users from "../pages/Users"
+import Login from "../pages/Login";
+import Register from "../pages/Register";
+import Dashboard from "../pages/Dashboard";
+import Tickets from "../pages/Tickets";
+import Users from "../pages/Users";
+import Profile from "../pages/Profile";
+import Settings from "../pages/Settings";
 
-import ProtectedRoute from "./ProtectedRoute"
+import ProtectedRoute from "./ProtectedRoute";
 
 export default function AppRoutes() {
   return (
     <BrowserRouter>
       <Routes>
 
-        {/* PUBLIC */}
+        {/* ================= PUBLIC ROUTES ================= */}
         <Route path="/" element={<Login />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
 
-        {/* USER + ADMIN */}
+        {/* ================= PROTECTED (USER + ADMIN) ================= */}
         <Route
           path="/dashboard"
           element={
@@ -37,7 +39,25 @@ export default function AppRoutes() {
           }
         />
 
-        {/* 🔥 ADMIN ONLY */}
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute allowedRoles={["user", "admin"]}>
+              <Profile />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute allowedRoles={["user", "admin"]}>
+              <Settings />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* ================= ADMIN ONLY ================= */}
         <Route
           path="/users"
           element={
@@ -49,5 +69,5 @@ export default function AppRoutes() {
 
       </Routes>
     </BrowserRouter>
-  )
+  );
 }
