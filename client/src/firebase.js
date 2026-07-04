@@ -2,7 +2,7 @@ import { initializeApp } from "firebase/app"
 import { getAuth } from "firebase/auth"
 import { getFirestore } from "firebase/firestore"
 
-const firebaseConfig = {
+export const firebaseConfig = {
   apiKey: "AIzaSyA2qaxPqiJcwjgtbVdsUbgSKunr6Nq9Mw4",
   authDomain: "ticketing-system-8f0c0.firebaseapp.com",
   projectId: "ticketing-system-8f0c0",

@@ -1,7 +1,6 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 
 import Login from "../pages/Login";
-import Register from "../pages/Register";
 import Dashboard from "../pages/Dashboard";
 import Tickets from "../pages/Tickets";
 import Users from "../pages/Users";
@@ -20,7 +19,6 @@ export default function AppRoutes() {
         {/* ================= PUBLIC ROUTES ================= */}
         <Route path="/" element={<Login />} />
         <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
 
         {/* ================= PROTECTED (USER + ADMIN) ================= */}
         <Route
@@ -88,6 +86,9 @@ export default function AppRoutes() {
             </ProtectedRoute>
           }
         />
+
+        {/* ================= FALLBACK ================= */}
+        <Route path="*" element={<Login />} />
 
       </Routes>
     </BrowserRouter>

@@ -31,10 +31,15 @@ export default function Login() {
     }
   };
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-blue-700 to-cyan-500 flex items-center justify-center p-6">
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter") handleLogin();
+  };
 
-      <div className="absolute inset-0 overflow-hidden">
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-blue-700 to-cyan-500 flex items-center justify-center p-6 relative overflow-hidden">
+
+      {/* Ambient background */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-40 -left-40 h-96 w-96 rounded-full bg-white/10 blur-3xl"></div>
         <div className="absolute bottom-0 right-0 h-96 w-96 rounded-full bg-cyan-300/20 blur-3xl"></div>
       </div>
@@ -55,7 +60,7 @@ export default function Login() {
           </p>
         </div>
 
-        <div className="space-y-5">
+        <div className="space-y-5" onKeyDown={handleKeyDown}>
 
           <div>
             <label className="text-white text-sm mb-2 block">
@@ -67,6 +72,7 @@ export default function Login() {
               placeholder="Enter your email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
               className="w-full rounded-xl border border-white/20 bg-white/20 px-4 py-3 text-white placeholder-white/70 outline-none focus:border-white focus:ring-2 focus:ring-cyan-300 transition"
             />
           </div>
@@ -82,13 +88,15 @@ export default function Login() {
                 placeholder="Enter your password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
                 className="w-full rounded-xl border border-white/20 bg-white/20 px-4 py-3 pr-12 text-white placeholder-white/70 outline-none focus:border-white focus:ring-2 focus:ring-cyan-300 transition"
               />
 
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-white"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-white/80 hover:text-white transition"
               >
                 {showPassword ? "🙈" : "👁"}
               </button>
@@ -116,23 +124,13 @@ export default function Login() {
         </div>
 
         <div className="mt-8 border-t border-white/20 pt-6">
-
-  <p className="text-center text-blue-100 text-sm">
-    Don't have an account?
-  </p>
-
-  <button
-    onClick={() => navigate("/register")}
-    className="mt-3 w-full rounded-xl border border-white/30 py-3 text-white font-semibold hover:bg-white/10 transition"
-  >
-    Create Account
-  </button>
-
-  <p className="text-center text-blue-200 text-xs mt-5">
-    Secure Ticket Management System
-  </p>
-
-</div>
+          <p className="text-center text-blue-200 text-xs">
+            Secure Ticket Management System
+          </p>
+          <p className="text-center text-blue-200/70 text-xs mt-1">
+            Need an account? Contact your administrator.
+          </p>
+        </div>
 
       </div>
 

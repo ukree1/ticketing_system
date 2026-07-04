@@ -9,6 +9,10 @@ import {
   toggleUserStatus,
   deleteUser,
   resetUserPassword,
+  createUser, // NOTE: add this to userService.js — creates an account directly
+             // (e.g. via a Firebase Admin/Cloud Function or backend endpoint)
+             // so it doesn't sign the admin out the way client-side
+             // registration would. Signature: createUser({ email, password, role })
 } from "../services/userService";
 
 import {
@@ -21,6 +25,11 @@ import {
   CheckCircle2,
   Trash2,
   Users as UsersIcon,
+  UserPlus,
+  X,
+  RefreshCw,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 
 export default function Users() {
@@ -32,6 +41,15 @@ export default function Users() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
+
+  // --- Add User modal state ---
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [newRole, setNewRole] = useState("user");
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [formError, setFormError] = useState("");
 
   useEffect(() => {
     loadUsers();
@@ -47,10 +65,10 @@ export default function Users() {
     }
   };
 
-  const handleRoleChange = async (id, newRole) => {
+  const handleRoleChange = async (id, newRoleValue) => {
     setBusyId(id);
     try {
-      await updateUserRole(id, newRole);
+      await updateUserRole(id, newRoleValue);
       await loadUsers();
     } finally {
       setBusyId(null);
@@ -90,6 +108,75 @@ export default function Users() {
     } catch (error) {
       console.error(error);
       alert("Failed to send reset email");
+    }
+  };
+
+  // --- Add User handlers ---
+  const resetAddForm = () => {
+    setNewEmail("");
+    setNewPassword("");
+    setNewRole("user");
+    setShowNewPassword(false);
+    setFormError("");
+  };
+
+  const openAddModal = () => {
+    resetAddForm();
+    setShowAddModal(true);
+  };
+
+  const closeAddModal = () => {
+    if (creating) return;
+    setShowAddModal(false);
+    resetAddForm();
+  };
+
+  const generatePassword = () => {
+    const chars =
+      "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$";
+    let pwd = "";
+    for (let i = 0; i < 12; i++) {
+      pwd += chars[Math.floor(Math.random() * chars.length)];
+    }
+    setNewPassword(pwd);
+    setShowNewPassword(true);
+  };
+
+  const handleCreateUser = async () => {
+    const cleanEmail = newEmail.trim();
+
+    if (!cleanEmail || !newPassword) {
+      setFormError("Please fill in all fields.");
+      return;
+    }
+
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailPattern.test(cleanEmail)) {
+      setFormError("Enter a valid email address.");
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      setFormError("Password must be at least 6 characters.");
+      return;
+    }
+
+    setFormError("");
+    setCreating(true);
+    try {
+      await createUser({
+        email: cleanEmail,
+        password: newPassword,
+        role: newRole,
+      });
+      await loadUsers();
+      setShowAddModal(false);
+      resetAddForm();
+      alert("Account created successfully!");
+    } catch (err) {
+      setFormError(err.message || "Failed to create account.");
+    } finally {
+      setCreating(false);
     }
   };
 
@@ -164,6 +251,14 @@ export default function Users() {
             </p>
           </div>
         </div>
+
+        <button
+          onClick={openAddModal}
+          className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm shadow-indigo-600/20 transition"
+        >
+          <UserPlus size={16} />
+          Add User
+        </button>
       </div>
 
       {/* STATS */}
@@ -229,8 +324,17 @@ export default function Users() {
             <UserCircle2 size={32} className={`mx-auto mb-2 ${subtle}`} />
             <p className="font-medium">No users found</p>
             <p className={`text-sm mt-1 ${subtle}`}>
-              Try a different search term.
+              {search ? "Try a different search term." : "Add your first user to get started."}
             </p>
+            {!search && (
+              <button
+                onClick={openAddModal}
+                className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 transition"
+              >
+                <UserPlus size={15} />
+                Add User
+              </button>
+            )}
           </div>
         ) : (
           filteredUsers.map((user, index) => {
@@ -349,6 +453,165 @@ export default function Users() {
           })
         )}
       </div>
+
+      {/* ADD USER MODAL */}
+      {showAddModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+          onClick={closeAddModal}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className={`w-full max-w-md rounded-2xl border shadow-2xl ${card}`}
+          >
+            {/* Modal header */}
+            <div
+              className={`flex items-center justify-between px-6 py-4 border-b ${
+                darkMode ? "border-gray-800" : "border-gray-100"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-500">
+                  <UserPlus size={18} />
+                </div>
+                <div>
+                  <h2 className="font-semibold leading-none">Add User</h2>
+                  <p className={`text-xs mt-1 ${subtle}`}>
+                    Create an account on behalf of a user
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={closeAddModal}
+                className={`p-1.5 rounded-lg transition ${
+                  darkMode ? "hover:bg-gray-800" : "hover:bg-gray-100"
+                }`}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal body */}
+            <div className="px-6 py-5 space-y-4">
+              <div>
+                <label className={`text-xs font-medium mb-1.5 block ${subtle}`}>
+                  Email Address
+                </label>
+                <input
+                  type="email"
+                  placeholder="name@company.com"
+                  value={newEmail}
+                  onChange={(e) => setNewEmail(e.target.value)}
+                  className={`w-full border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 transition ${inputBase}`}
+                />
+              </div>
+
+              <div>
+                <label className={`text-xs font-medium mb-1.5 block ${subtle}`}>
+                  Temporary Password
+                </label>
+                <div className="relative">
+                  <input
+                    type={showNewPassword ? "text" : "password"}
+                    placeholder="Enter or generate a password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className={`w-full border rounded-lg pl-3 pr-20 py-2.5 text-sm focus:outline-none focus:ring-2 transition ${inputBase}`}
+                  />
+                  <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className={`p-1.5 rounded-md transition ${
+                        darkMode ? "hover:bg-gray-800 text-gray-400" : "hover:bg-gray-100 text-gray-500"
+                      }`}
+                    >
+                      {showNewPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={generatePassword}
+                      title="Generate password"
+                      className={`p-1.5 rounded-md transition ${
+                        darkMode ? "hover:bg-gray-800 text-gray-400" : "hover:bg-gray-100 text-gray-500"
+                      }`}
+                    >
+                      <RefreshCw size={14} />
+                    </button>
+                  </div>
+                </div>
+                <p className={`text-[11px] mt-1.5 ${subtle}`}>
+                  At least 6 characters. Share this with the user securely.
+                </p>
+              </div>
+
+              <div>
+                <label className={`text-xs font-medium mb-1.5 block ${subtle}`}>
+                  Role
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {["user", "admin"].map((r) => (
+                    <button
+                      type="button"
+                      key={r}
+                      onClick={() => setNewRole(r)}
+                      className={`flex items-center justify-center gap-1.5 rounded-lg border py-2 text-sm font-medium capitalize transition ${
+                        newRole === r
+                          ? "bg-indigo-600 border-indigo-600 text-white"
+                          : darkMode
+                          ? "border-gray-700 text-gray-300 hover:bg-gray-800"
+                          : "border-gray-200 text-gray-600 hover:bg-gray-50"
+                      }`}
+                    >
+                      {r === "admin" && <ShieldCheck size={13} />}
+                      {r}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {formError && (
+                <div className="rounded-lg px-3 py-2 text-xs font-medium bg-red-500/10 text-red-500">
+                  {formError}
+                </div>
+              )}
+            </div>
+
+            {/* Modal footer */}
+            <div
+              className={`flex items-center justify-end gap-2 px-6 py-4 border-t ${
+                darkMode ? "border-gray-800" : "border-gray-100"
+              }`}
+            >
+              <button
+                onClick={closeAddModal}
+                disabled={creating}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+                  darkMode
+                    ? "text-gray-300 hover:bg-gray-800"
+                    : "text-gray-600 hover:bg-gray-100"
+                }`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateUser}
+                disabled={creating}
+                className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white transition ${
+                  creating
+                    ? "bg-indigo-400 cursor-not-allowed"
+                    : "bg-indigo-600 hover:bg-indigo-700"
+                }`}
+              >
+                {creating && (
+                  <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                )}
+                {creating ? "Creating..." : "Create Account"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { db, auth } from "../firebase";
+import { db, auth, firebaseConfig } from "../firebase";
 import {
   doc,
   setDoc,
@@ -10,7 +10,14 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 
-import { sendPasswordResetEmail } from "firebase/auth";
+import {
+  sendPasswordResetEmail,
+  getAuth,
+  createUserWithEmailAndPassword,
+  signOut,
+} from "firebase/auth";
+
+import { initializeApp, deleteApp } from "firebase/app";
 
 const ADMIN_EMAIL = "admin@ticketing.com";
 
@@ -38,6 +45,73 @@ export const createUserProfile = async (user) => {
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
+};
+
+// =======================
+// CREATE USER (ADMIN ACTION)
+// =======================
+// Lets an admin create an account for someone else without being
+// signed out themselves. Firebase Auth normally switches the active
+// session to whichever user was just created with
+// createUserWithEmailAndPassword — so we spin up a throwaway
+// secondary app instance, create the account there, write the
+// Firestore profile with the main `db`, then tear the secondary
+// instance down. The admin's own session on `auth` is never touched.
+export const createUser = async ({ email, password, role = "user" }) => {
+  const cleanEmail = (email || "").trim();
+
+  if (!cleanEmail || !password) {
+    throw new Error("Email and password are required.");
+  }
+
+  if (password.length < 6) {
+    throw new Error("Password must be at least 6 characters.");
+  }
+
+  const secondaryApp = initializeApp(
+    firebaseConfig,
+    `secondary-${Date.now()}`
+  );
+  const secondaryAuth = getAuth(secondaryApp);
+
+  try {
+    const { user } = await createUserWithEmailAndPassword(
+      secondaryAuth,
+      cleanEmail,
+      password
+    );
+
+    await setDoc(doc(db, "users", user.uid), {
+      uid: user.uid,
+      email: cleanEmail,
+      name: cleanEmail.split("@")[0],
+      role,
+      disabled: false,
+      theme: "light",
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+
+    return { uid: user.uid, email: cleanEmail, role };
+  } catch (err) {
+    console.error("createUser error:", err);
+
+    if (err.code === "auth/email-already-in-use") {
+      throw new Error("An account with this email already exists.");
+    }
+    if (err.code === "auth/invalid-email") {
+      throw new Error("That email address looks invalid.");
+    }
+    if (err.code === "auth/weak-password") {
+      throw new Error("Password is too weak.");
+    }
+
+    throw new Error(err.message || "Failed to create account.");
+  } finally {
+    // Clean up the throwaway auth session + app instance either way.
+    await signOut(secondaryAuth).catch(() => {});
+    await deleteApp(secondaryApp).catch(() => {});
+  }
 };
 
 export const getUserRole = async (uid) => {
