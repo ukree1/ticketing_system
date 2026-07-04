@@ -1,0 +1,27 @@
+{
+  "name": "ticketing-system",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "npm run dev --prefix client",
+    "build": "npm run build --prefix client",
+    "preview": "npm run preview --prefix client",
+    "lint": "npm run lint --prefix client",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ukree1/ticketing_system.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/ukree1/ticketing_system/issues"
+  },
+  "homepage": "https://github.com/ukree1/ticketing_system#readme",
+  "dependencies": {
+    "concurrently": "^10.0.3"
+  }
+}
