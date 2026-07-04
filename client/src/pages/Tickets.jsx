@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { ArrowLeft } from "lucide-react";
 import { auth } from "../firebase";
 import useRole from "../hooks/useRole";
 
-import {
-  createTicket,
-  listenToTickets
-} from "../services/ticketService";
+import { createTicket, listenToTickets } from "../services/ticketService";
+import { getUsers } from "../services/userService";
 
 import TicketTable from "../components/tickets/TicketTable";
 import TicketFilters from "../components/tickets/TicketFilters";
@@ -14,11 +14,15 @@ import TicketModal from "../components/tickets/TicketModal";
 import { useTheme } from "../context/ThemeContext";
 
 export default function Tickets() {
+  const navigate = useNavigate();
   const role = useRole();
   const { darkMode } = useTheme();
 
   const [tickets, setTickets] = useState([]);
   const [filteredTickets, setFilteredTickets] = useState([]);
+
+  const [users, setUsers] = useState([]);
+  const [assignedToUid, setAssignedToUid] = useState("");
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -28,7 +32,27 @@ export default function Tickets() {
   const [openModal, setOpenModal] = useState(false);
 
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
 
+  const isAdmin = role === "admin";
+
+  // ================= USERS (admin only, for the assign dropdown) =================
+  useEffect(() => {
+    if (!isAdmin) return;
+
+    const loadUsers = async () => {
+      try {
+        const data = await getUsers();
+        setUsers(data || []);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+
+    loadUsers();
+  }, [isAdmin]);
+
+  // ================= TICKETS =================
   useEffect(() => {
     let unsubscribe = () => {};
 
@@ -54,22 +78,45 @@ export default function Tickets() {
     };
   }, []);
 
+  // ================= CREATE =================
+  // Any signed-in user (admin or regular user) can submit a ticket.
+  // It starts as "pending". createTicket() already notifies the assignee
+  // (if any) and every admin (if a non-admin submitted it) — no need to
+  // duplicate that here.
   const handleCreate = async () => {
-    if (!title.trim() || !description.trim()) return;
+    if (!title.trim() || !description.trim()) {
+      alert("Please fill in all required fields.");
+      return;
+    }
+
+    setSubmitting(true);
 
     try {
+      const selectedUser = users.find((u) => u.uid === assignedToUid);
+
       await createTicket({
         title,
         description,
-        priority
+        priority,
+
+        assignedToUid: isAdmin ? selectedUser?.uid || "" : "",
+        assignedToEmail: isAdmin ? selectedUser?.email || "" : "",
+        assignedToName: isAdmin ? selectedUser?.name || selectedUser?.email || "" : "",
       });
 
       setTitle("");
       setDescription("");
       setPriority("low");
+      setAssignedToUid("");
+
+      alert(
+        isAdmin ? "Ticket created successfully!" : "Ticket submitted! An admin will review it shortly."
+      );
     } catch (err) {
       console.error(err);
       alert(err.message);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -84,41 +131,43 @@ export default function Tickets() {
         darkMode ? "bg-black text-white" : "bg-gray-100 text-gray-900"
       }`}
     >
-
       {/* HEADER */}
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-3xl font-bold text-indigo-500">
-            Ticket Management
-          </h1>
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => navigate("/dashboard")}
+            className={`flex items-center gap-2 rounded-xl px-4 py-2 transition ${
+              darkMode ? "bg-gray-800 hover:bg-gray-700" : "bg-white shadow hover:bg-gray-200"
+            }`}
+          >
+            <ArrowLeft size={18} />
+            Back
+          </button>
 
-          <p className="text-sm opacity-70 mt-1">
-            Welcome {auth.currentUser?.email || "User"}
-          </p>
+          <div>
+            <h1 className="text-3xl font-bold text-indigo-500">Ticket Management</h1>
+            <p className="text-sm opacity-70 mt-1">Welcome {auth.currentUser?.email || "User"}</p>
+          </div>
         </div>
 
-        <span className="bg-indigo-600 text-white px-4 py-2 rounded-lg">
+        <span className="self-start rounded-xl bg-indigo-600 px-4 py-2 font-semibold text-white md:self-auto">
           {role ? role.toUpperCase() : "LOADING"}
         </span>
       </div>
 
-      {/* CREATE TICKET */}
-      <div
-        className={`rounded-2xl shadow p-6 mb-6 transition ${
-          darkMode ? "bg-gray-900" : "bg-white"
-        }`}
-      >
-        <h2 className="text-xl font-semibold mb-4">
-          Create Ticket
-        </h2>
+      {/* CREATE TICKET — available to everyone */}
+      <div className={`rounded-2xl p-6 shadow mb-6 ${darkMode ? "bg-gray-900" : "bg-white"}`}>
+        <h2 className="text-xl font-semibold mb-1">{isAdmin ? "Create Ticket" : "Submit a Ticket"}</h2>
+        <p className={`text-sm mb-4 ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
+          {isAdmin
+            ? "Create a ticket and optionally assign it to a user."
+            : "Your ticket will be sent to an admin for review."}
+        </p>
 
         <div className="grid md:grid-cols-2 gap-4">
-
           <input
-            className={`border rounded-lg p-3 outline-none transition ${
-              darkMode
-                ? "bg-gray-800 border-gray-700 text-white"
-                : "bg-white border-gray-300"
+            className={`rounded-xl border p-3 outline-none transition focus:ring-2 focus:ring-indigo-500 ${
+              darkMode ? "border-gray-700 bg-gray-800 text-white" : "border-gray-200 bg-gray-50"
             }`}
             placeholder="Ticket Title"
             value={title}
@@ -126,10 +175,8 @@ export default function Tickets() {
           />
 
           <select
-            className={`border rounded-lg p-3 transition ${
-              darkMode
-                ? "bg-gray-800 border-gray-700 text-white"
-                : "bg-white border-gray-300"
+            className={`rounded-xl border p-3 outline-none transition focus:ring-2 focus:ring-indigo-500 ${
+              darkMode ? "border-gray-700 bg-gray-800 text-white" : "border-gray-200 bg-gray-50"
             }`}
             value={priority}
             onChange={(e) => setPriority(e.target.value)}
@@ -138,14 +185,31 @@ export default function Tickets() {
             <option value="medium">Medium</option>
             <option value="high">High</option>
           </select>
-
         </div>
 
+        {/* ADMIN ONLY ASSIGN */}
+        {isAdmin && (
+          <div className="mt-4">
+            <select
+              className={`w-full rounded-xl border p-3 outline-none transition focus:ring-2 focus:ring-indigo-500 ${
+                darkMode ? "border-gray-700 bg-gray-800 text-white" : "border-gray-200 bg-gray-50"
+              }`}
+              value={assignedToUid}
+              onChange={(e) => setAssignedToUid(e.target.value)}
+            >
+              <option value="">Assign To (Optional)</option>
+              {users.map((user) => (
+                <option key={user.uid} value={user.uid}>
+                  {user.email}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
         <textarea
-          className={`border rounded-lg p-3 mt-4 w-full outline-none transition ${
-            darkMode
-              ? "bg-gray-800 border-gray-700 text-white"
-              : "bg-white border-gray-300"
+          className={`mt-4 w-full rounded-xl border p-3 outline-none transition focus:ring-2 focus:ring-indigo-500 ${
+            darkMode ? "border-gray-700 bg-gray-800 text-white" : "border-gray-200 bg-gray-50"
           }`}
           rows={4}
           placeholder="Ticket Description"
@@ -155,35 +219,21 @@ export default function Tickets() {
 
         <button
           onClick={handleCreate}
-          className="mt-4 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg"
+          disabled={submitting}
+          className="mt-4 rounded-xl bg-indigo-600 px-6 py-3 font-medium text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          Create Ticket
+          {submitting ? "Submitting…" : isAdmin ? "Create Ticket" : "Submit Ticket"}
         </button>
       </div>
 
       {/* FILTERS */}
-      <TicketFilters
-        tickets={tickets}
-        setFiltered={setFilteredTickets}
-      />
+      <TicketFilters tickets={tickets} setFiltered={setFilteredTickets} />
 
       {/* TABLE */}
       {loading ? (
-        <div className="text-center opacity-70 mt-6">
-          Loading tickets...
-        </div>
+        <div className="text-center mt-6">Loading tickets...</div>
       ) : (
-        <div
-          className={`rounded-2xl overflow-hidden shadow mt-4 ${
-            darkMode ? "bg-gray-900" : "bg-white"
-          }`}
-        >
-          <TicketTable
-            tickets={filteredTickets}
-            role={role}
-            onEdit={handleEdit}
-          />
-        </div>
+        <TicketTable tickets={filteredTickets} role={role} onEdit={handleEdit} />
       )}
 
       {/* MODAL */}

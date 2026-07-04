@@ -1,23 +1,35 @@
 export default function StatusBadge({ status }) {
   const styles = {
-    open: "bg-yellow-100 text-yellow-700",
-    in_progress: "bg-blue-100 text-blue-700",
-    closed: "bg-green-100 text-green-700",
-  }
+    pending: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+    in_progress: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
+    approved: "bg-green-500/10 text-green-600 dark:text-green-400",
+    declined: "bg-red-500/10 text-red-600 dark:text-red-400",
+  };
+
+  const dot = {
+    pending: "bg-amber-500",
+    in_progress: "bg-blue-500",
+    approved: "bg-green-500",
+    declined: "bg-red-500",
+  };
 
   const labels = {
-    open: "Open",
+    pending: "Pending Review",
     in_progress: "In Progress",
-    closed: "Closed",
-  }
+    approved: "Approved",
+    declined: "Declined",
+  };
 
   return (
     <span
-      className={`px-3 py-1 rounded-full text-xs font-semibold ${
-        styles[status] || "bg-gray-100 text-gray-700"
+      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${
+        styles[status] || "bg-gray-500/10 text-gray-600 dark:text-gray-400"
       }`}
     >
+      <span
+        className={`w-1.5 h-1.5 rounded-full ${dot[status] || "bg-gray-400"}`}
+      />
       {labels[status] || status}
     </span>
-  )
+  );
 }

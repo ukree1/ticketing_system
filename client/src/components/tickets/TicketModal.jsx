@@ -1,130 +1,277 @@
-import { useEffect, useState } from "react"
-import { X } from "lucide-react"
-import { updateTicket } from "../../services/ticketService"
+import { useEffect, useState } from "react";
+import { X, Ticket as TicketIcon, Clock, CheckCircle2, XCircle } from "lucide-react";
+import {
+  updateTicket,
+  assignTicket,
+  reviewTicket,
+} from "../../services/ticketService";
+import { getUsers } from "../../services/userService";
+import { useTheme } from "../../context/ThemeContext";
+import useRole from "../../hooks/useRole";
+import StatusBadge from "./StatusBadge";
+
+const REVIEW_ACTIONS = [
+  { value: "in_progress", label: "In Progress", icon: Clock, active: "bg-blue-600 text-white" },
+  { value: "approved", label: "Approve", icon: CheckCircle2, active: "bg-green-600 text-white" },
+  { value: "declined", label: "Decline", icon: XCircle, active: "bg-red-600 text-white" },
+];
 
 export default function TicketModal({
   open,
   onClose,
   ticket,
-  refresh
+  refresh,
 }) {
-  const [title, setTitle] = useState("")
-  const [description, setDescription] = useState("")
-  const [priority, setPriority] = useState("low")
-  const [status, setStatus] = useState("open")
-  const [assignedTo, setAssignedTo] = useState("")
+  const { darkMode } = useTheme();
+  const role = useRole();
+  const isAdmin = role === "admin";
 
+  const [loading, setLoading] = useState(false);
+
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [priority, setPriority] = useState("low");
+  const [status, setStatus] = useState("pending");
+
+  const [users, setUsers] = useState([]);
+  const [assignedToUid, setAssignedToUid] = useState("");
+
+  // ================= LOAD USERS =================
   useEffect(() => {
-    if (ticket) {
-      setTitle(ticket.title || "")
-      setDescription(ticket.description || "")
-      setPriority(ticket.priority || "low")
-      setStatus(ticket.status || "open")
-      setAssignedTo(ticket.assignedTo || "")
-    }
-  }, [ticket])
+    if (!isAdmin) return;
 
-  if (!open) return null
+    const loadUsers = async () => {
+      try {
+        const data = await getUsers();
+        setUsers(data || []);
+      } catch (err) {
+        console.error(err);
+      }
+    };
 
+    loadUsers();
+  }, [isAdmin]);
+
+  // ================= LOAD TICKET =================
+  useEffect(() => {
+    if (!ticket) return;
+
+    setTitle(ticket.title || "");
+    setDescription(ticket.description || "");
+    setPriority(ticket.priority || "low");
+    setStatus(ticket.status || "pending");
+    setAssignedToUid(ticket.assignedToUid || "");
+  }, [ticket]);
+
+  if (!open) return null;
+
+  // ================= SAVE =================
   const handleSave = async () => {
+    if (!ticket?.id) return;
+
+    setLoading(true);
+
     try {
+      const selectedUser = users.find(
+        (u) => u.uid === assignedToUid
+      );
+
+      const statusChanged = isAdmin && status !== ticket.status;
+
+      // Update the editable fields. Status is included here too so the
+      // ticket document stays in sync even without a separate call.
       await updateTicket(ticket.id, {
         title,
         description,
         priority,
         status,
-        assignedTo
-      })
+      });
 
-      refresh()
-      onClose()
+      if (isAdmin) {
+        // Assign / reassign, notifying the new assignee if it changed.
+        if (assignedToUid !== ticket.assignedToUid) {
+          await assignTicket(
+            ticket.id,
+            selectedUser?.uid || "",
+            selectedUser?.email || "",
+            selectedUser?.name || selectedUser?.email || "",
+            title,
+            description,
+            priority,
+            status
+          );
+        }
+
+        // Let the ticket's creator know a review decision was made.
+        if (statusChanged) {
+          await reviewTicket({ ...ticket, title }, status);
+        }
+      }
+
+      refresh?.();
+      onClose?.();
+
     } catch (err) {
-      console.log(err)
+      console.error(err);
+      alert(err.message);
+
+    } finally {
+      setLoading(false);
     }
-  }
+  };
+
+  const border = darkMode ? "border-gray-800" : "border-gray-200";
+  const fieldBase = darkMode
+    ? "bg-gray-800 border-gray-700 text-white focus:ring-indigo-500"
+    : "bg-white border-gray-200 text-gray-900 focus:ring-indigo-500";
+  const label = `block text-xs font-semibold uppercase tracking-wide mb-1.5 ${
+    darkMode ? "text-gray-400" : "text-gray-500"
+  }`;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex justify-center items-center z-50">
-
-      <div className="bg-white rounded-xl w-full max-w-xl p-6 relative">
-
-        <button
-          onClick={onClose}
-          className="absolute right-5 top-5"
-        >
-          <X />
-        </button>
-
-        <h2 className="text-2xl font-bold mb-6">
-          Edit Ticket
-        </h2>
-
-        <div className="space-y-4">
-
-          <input
-            className="w-full border rounded-lg p-3"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Title"
-          />
-
-          <textarea
-            rows="4"
-            className="w-full border rounded-lg p-3"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Description"
-          />
-
-          <select
-            className="w-full border rounded-lg p-3"
-            value={priority}
-            onChange={(e) => setPriority(e.target.value)}
-          >
-            <option value="low">Low</option>
-            <option value="medium">Medium</option>
-            <option value="high">High</option>
-          </select>
-
-          <select
-            className="w-full border rounded-lg p-3"
-            value={status}
-            onChange={(e) => setStatus(e.target.value)}
-          >
-            <option value="open">Open</option>
-            <option value="in_progress">In Progress</option>
-            <option value="closed">Closed</option>
-          </select>
-
-          <input
-            className="w-full border rounded-lg p-3"
-            placeholder="Assign User Email"
-            value={assignedTo}
-            onChange={(e) => setAssignedTo(e.target.value)}
-          />
-
-          <div className="flex justify-end gap-3">
-
-            <button
-              onClick={onClose}
-              className="px-5 py-2 rounded-lg bg-gray-300"
-            >
-              Cancel
-            </button>
-
-            <button
-              onClick={handleSave}
-              className="px-5 py-2 rounded-lg bg-blue-600 text-white"
-            >
-              Save Changes
-            </button>
-
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div
+        className={`w-full max-w-xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh] border
+        ${darkMode ? "bg-gray-900 text-white" : "bg-white text-gray-900"} ${border}`}
+      >
+        {/* HEADER */}
+        <div className={`flex justify-between items-center p-5 border-b ${border}`}>
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-500">
+              <TicketIcon size={18} />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold leading-none">
+                {isAdmin ? "Review Ticket" : "View Ticket"}
+              </h2>
+              {ticket?.id && (
+                <p className={`text-xs mt-1 ${darkMode ? "text-gray-500" : "text-gray-400"}`}>
+                  ID: {ticket.id.slice(0, 8)}...
+                </p>
+              )}
+            </div>
           </div>
-f
+
+          <button
+            onClick={onClose}
+            className={`p-1.5 rounded-lg transition ${
+              darkMode ? "hover:bg-gray-800 hover:text-red-400" : "hover:bg-gray-100 hover:text-red-500"
+            }`}
+          >
+            <X size={18} />
+          </button>
         </div>
 
-      </div>
+        {/* BODY */}
+        <div className="p-5 space-y-4 overflow-y-auto">
+          <div>
+            <label className={label}>Title</label>
+            <input
+              className={`w-full rounded-lg p-3 border text-sm outline-none focus:ring-2 transition ${fieldBase}`}
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Ticket Title"
+            />
+          </div>
 
+          <div>
+            <label className={label}>Description</label>
+            <textarea
+              rows={5}
+              className={`w-full rounded-lg p-3 border text-sm outline-none focus:ring-2 transition resize-none ${fieldBase}`}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Describe the issue..."
+            />
+          </div>
+
+          <div>
+            <label className={label}>Priority</label>
+            <select
+              className={`w-full rounded-lg p-3 border text-sm outline-none focus:ring-2 transition ${fieldBase}`}
+              value={priority}
+              onChange={(e) => setPriority(e.target.value)}
+            >
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+            </select>
+          </div>
+
+          {/* STATUS — admin gets review actions, everyone else gets a read-only badge */}
+          <div>
+            <label className={label}>Status</label>
+
+            {isAdmin ? (
+              <div className="grid grid-cols-3 gap-2">
+                {REVIEW_ACTIONS.map(({ value, label: btnLabel, icon: Icon, active }) => {
+                  const isSelected = status === value;
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setStatus(value)}
+                      className={`flex flex-col items-center gap-1 rounded-lg border py-2.5 text-xs font-medium transition ${
+                        isSelected
+                          ? `${active} border-transparent`
+                          : darkMode
+                          ? "border-gray-700 text-gray-300 hover:bg-gray-800"
+                          : "border-gray-200 text-gray-600 hover:bg-gray-50"
+                      }`}
+                    >
+                      <Icon size={15} />
+                      {btnLabel}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <StatusBadge status={status} />
+            )}
+          </div>
+
+          {isAdmin && (
+            <div>
+              <label className={label}>Assigned To</label>
+              <select
+                className={`w-full rounded-lg p-3 border text-sm outline-none focus:ring-2 transition ${fieldBase}`}
+                value={assignedToUid}
+                onChange={(e) => setAssignedToUid(e.target.value)}
+              >
+                <option value="">Unassigned</option>
+
+                {users.map((user) => (
+                  <option key={user.uid} value={user.uid}>
+                    {user.email}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+
+        {/* FOOTER */}
+        <div className={`border-t ${border} p-5 flex justify-end gap-3`}>
+          <button
+            onClick={onClose}
+            className={`px-5 py-2 rounded-lg text-sm font-medium transition ${
+              darkMode
+                ? "bg-gray-800 hover:bg-gray-700 text-gray-200"
+                : "bg-gray-100 hover:bg-gray-200 text-gray-700"
+            }`}
+          >
+            Cancel
+          </button>
+
+          <button
+            disabled={loading}
+            onClick={handleSave}
+            className="px-5 py-2 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50 transition"
+          >
+            {loading ? "Saving..." : "Save Changes"}
+          </button>
+        </div>
+      </div>
     </div>
-  )
+  );
 }

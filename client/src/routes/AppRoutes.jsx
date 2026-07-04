@@ -7,6 +7,8 @@ import Tickets from "../pages/Tickets";
 import Users from "../pages/Users";
 import Profile from "../pages/Profile";
 import Settings from "../pages/Settings";
+import NotificationsPage from "../pages/NotificationsPage"; // ✅ ADD THIS
+import Messages from "../pages/Messages"; // ✅ ADD THIS
 
 import ProtectedRoute from "./ProtectedRoute";
 
@@ -35,6 +37,26 @@ export default function AppRoutes() {
           element={
             <ProtectedRoute allowedRoles={["user", "admin"]}>
               <Tickets />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* 🔔 NOTIFICATIONS ROUTE (FIXED) */}
+        <Route
+          path="/notifications"
+          element={
+            <ProtectedRoute allowedRoles={["user", "admin"]}>
+              <NotificationsPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* 💬 MESSAGES ROUTE */}
+        <Route
+          path="/messages"
+          element={
+            <ProtectedRoute allowedRoles={["user", "admin"]}>
+              <Messages />
             </ProtectedRoute>
           }
         />
