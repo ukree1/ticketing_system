@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { BarChart3, ListChecks, Moon, PieChart, Sun, TrendingUp } from "lucide-react";
 import { auth } from "../firebase";
 import useRole from "../hooks/useRole";
-import useNotifications from "../hooks/useNotifications";
+import useNotifications from "../hooks/useNotifications.js";
 import useBroadcasts from "../hooks/useBroadcasts";
 import MainLayout from "../layouts/MainLayout";
 import DashboardCard from "../components/DashboardCard";
@@ -187,6 +187,8 @@ export default function Dashboard() {
     })
     .join(", ");
 
+  const monthLabels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
   return (
     <MainLayout>
       <div
@@ -194,13 +196,13 @@ export default function Dashboard() {
           darkMode ? "bg-black text-white" : "bg-gray-100 text-gray-900"
         }`}
       >
-        <div className="mx-auto w-full max-w-7xl space-y-6 px-4 py-4 pb-24 sm:space-y-8 sm:px-6 sm:py-6 lg:px-8 lg:pb-8">
+        <div className="mx-auto w-full max-w-7xl space-y-6 px-3 py-4 pb-24 sm:space-y-8 sm:px-6 sm:py-6 lg:px-8 lg:pb-8">
           {/* HEADER */}
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
-              <h1 className="text-2xl font-bold text-indigo-500 sm:text-3xl">Dashboard</h1>
+              <h1 className="text-xl font-bold text-indigo-500 sm:text-2xl lg:text-3xl">Dashboard</h1>
 
-              <p className="mt-1 truncate text-sm opacity-70">
+              <p className="mt-1 truncate text-xs opacity-70 sm:text-sm">
                 Welcome, {auth.currentUser?.email}
               </p>
 
@@ -215,7 +217,7 @@ export default function Dashboard() {
               </p>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
               <MessageBell
                 unreadCount={unreadMessages}
                 darkMode={darkMode}
@@ -230,20 +232,21 @@ export default function Dashboard() {
 
               <button
                 onClick={toggleDarkMode}
-                className={`inline-flex h-11 w-fit items-center gap-2 rounded-xl px-4 text-sm font-medium transition ${
+                className={`inline-flex h-10 w-fit items-center gap-2 rounded-xl px-3 text-xs font-medium transition sm:h-11 sm:px-4 sm:text-sm ${
                   darkMode
                     ? "bg-yellow-400 text-black hover:bg-yellow-300"
                     : "bg-indigo-600 text-white hover:bg-indigo-700"
                 }`}
               >
-                {darkMode ? <Sun size={18} /> : <Moon size={18} />}
-                {darkMode ? "Light Mode" : "Dark Mode"}
+                {darkMode ? <Sun size={16} className="sm:hidden" /> : <Moon size={16} className="sm:hidden" />}
+                {darkMode ? <Sun size={18} className="hidden sm:block" /> : <Moon size={18} className="hidden sm:block" />}
+                <span className="hidden xs:inline sm:inline">{darkMode ? "Light Mode" : "Dark Mode"}</span>
               </button>
             </div>
           </div>
 
           {/* STAT CARDS */}
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:gap-6 xl:grid-cols-5">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:gap-6 xl:grid-cols-5">
             <DashboardCard title="Total Tickets" value={stats.total} color="bg-indigo-500" />
             <DashboardCard title="Pending" value={stats.pending} color="bg-amber-500" />
             <DashboardCard title="In Progress" value={stats.inProgress} color="bg-blue-500" />
@@ -254,19 +257,19 @@ export default function Dashboard() {
           {/* CHARTS */}
           <div className="grid grid-cols-1 gap-4 lg:gap-6 xl:grid-cols-2">
             <section
-              className={`rounded-2xl p-4 shadow-sm ring-1 sm:p-6 ${
+              className={`rounded-2xl p-3 shadow-sm ring-1 sm:p-6 ${
                 darkMode ? "bg-gray-900 ring-gray-800" : "bg-white ring-gray-100"
               }`}
             >
-              <div className="mb-5 flex items-center justify-between">
-                <h2 className="text-base font-semibold sm:text-lg">Ticket Status</h2>
-                <BarChart3 className="text-indigo-500" size={22} />
+              <div className="mb-4 flex items-center justify-between sm:mb-5">
+                <h2 className="text-sm font-semibold sm:text-base lg:text-lg">Ticket Status</h2>
+                <BarChart3 className="text-indigo-500" size={20} />
               </div>
 
-              <div className="flex h-52 items-end gap-3 sm:h-56 sm:gap-5">
+              <div className="flex h-44 items-end gap-2 sm:h-52 sm:gap-3 lg:h-56 lg:gap-5">
                 {statusBreakdown.map((item) => (
-                  <div key={item.label} className="flex min-w-0 flex-1 flex-col gap-3">
-                    <div className={`flex h-36 items-end rounded-lg ${darkMode ? "bg-gray-800" : "bg-gray-100"}`}>
+                  <div key={item.label} className="flex min-w-0 flex-1 flex-col gap-2 sm:gap-3">
+                    <div className={`flex h-28 items-end rounded-lg sm:h-36 ${darkMode ? "bg-gray-800" : "bg-gray-100"}`}>
                       <div
                         className={`w-full rounded-t-lg transition-all duration-500 ${item.color}`}
                         style={{ height: `${Math.max((item.value / totalTickets) * 100, 8)}%` }}
@@ -274,8 +277,8 @@ export default function Dashboard() {
                     </div>
 
                     <div className="text-center">
-                      <p className="truncate text-xs font-medium sm:text-sm">{item.label}</p>
-                      <p className="text-xs opacity-60">{item.value}</p>
+                      <p className="truncate text-[10px] font-medium sm:text-sm">{item.label}</p>
+                      <p className="text-[10px] opacity-60 sm:text-xs">{item.value}</p>
                     </div>
                   </div>
                 ))}
@@ -283,25 +286,25 @@ export default function Dashboard() {
             </section>
 
             <section
-              className={`rounded-2xl p-4 shadow-sm ring-1 sm:p-6 ${
+              className={`rounded-2xl p-3 shadow-sm ring-1 sm:p-6 ${
                 darkMode ? "bg-gray-900 ring-gray-800" : "bg-white ring-gray-100"
               }`}
             >
-              <div className="mb-5 flex items-center justify-between">
-                <h2 className="text-base font-semibold sm:text-lg">Status Breakdown</h2>
-                <PieChart className="text-indigo-500" size={22} />
+              <div className="mb-4 flex items-center justify-between sm:mb-5">
+                <h2 className="text-sm font-semibold sm:text-base lg:text-lg">Status Breakdown</h2>
+                <PieChart className="text-indigo-500" size={20} />
               </div>
 
-              <div className="flex flex-col items-center gap-6 sm:flex-row">
+              <div className="flex flex-col items-center gap-5 sm:flex-row sm:gap-6">
                 <div
-                  className="h-36 w-36 shrink-0 rounded-full sm:h-44 sm:w-44"
+                  className="h-32 w-32 shrink-0 rounded-full sm:h-44 sm:w-44"
                   style={{ background: `conic-gradient(${pieStops})` }}
                 />
 
-                <div className="w-full space-y-4">
+                <div className="w-full space-y-3 sm:space-y-4">
                   {statusBreakdown.map((item) => (
                     <div key={item.label}>
-                      <div className="mb-1 flex justify-between gap-3 text-sm">
+                      <div className="mb-1 flex justify-between gap-3 text-xs sm:text-sm">
                         <span className="flex min-w-0 items-center gap-2">
                           <span className={`h-3 w-3 shrink-0 rounded-full ${item.color}`} />
                           <span className="truncate">{item.label}</span>
@@ -324,44 +327,50 @@ export default function Dashboard() {
 
           {/* LINE CHART */}
           <section
-            className={`rounded-2xl p-4 shadow-sm ring-1 sm:p-6 ${
+            className={`rounded-2xl p-3 shadow-sm ring-1 sm:p-6 ${
               darkMode ? "bg-gray-900 ring-gray-800" : "bg-white ring-gray-100"
             }`}
           >
-            <div className="mb-5 flex items-center justify-between">
-              <h2 className="flex items-center gap-2 text-base font-semibold sm:text-lg">
-                <TrendingUp size={18} className="text-indigo-500" />
+            <div className="mb-4 flex items-center justify-between sm:mb-5">
+              <h2 className="flex items-center gap-2 text-sm font-semibold sm:text-base lg:text-lg">
+                <TrendingUp size={16} className="text-indigo-500 sm:hidden" />
+                <TrendingUp size={18} className="hidden text-indigo-500 sm:block" />
                 Monthly Line Chart
               </h2>
-              <ListChecks className="text-indigo-500" size={22} />
+              <ListChecks className="text-indigo-500" size={20} />
             </div>
 
-            <div className="overflow-x-auto">
-              <div className="min-w-[640px]">
-                <svg viewBox="0 0 100 110" className="h-56 w-full sm:h-64" preserveAspectRatio="none">
-                  <polyline
-                    points={linePoints}
-                    fill="none"
-                    stroke="#6366f1"
-                    strokeWidth="3"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
+            {/* Fully fluid — no forced min-width / horizontal scroll on mobile */}
+            <div className="w-full">
+              <svg viewBox="0 0 100 110" className="h-40 w-full sm:h-56 lg:h-64" preserveAspectRatio="none">
+                <polyline
+                  points={linePoints}
+                  fill="none"
+                  stroke="#6366f1"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  vectorEffect="non-scaling-stroke"
+                />
 
-                  {monthlyTickets.map((value, index) => {
-                    const x = (index / (monthlyTickets.length - 1)) * 100;
-                    const y = 100 - (value / maxMonthly) * 85;
-                    return <circle key={index} cx={x} cy={y} r="1.8" fill="#6366f1" />;
-                  })}
-                </svg>
+                {monthlyTickets.map((value, index) => {
+                  const x = (index / (monthlyTickets.length - 1)) * 100;
+                  const y = 100 - (value / maxMonthly) * 85;
+                  return <circle key={index} cx={x} cy={y} r="1.8" fill="#6366f1" />;
+                })}
+              </svg>
 
-                <div className="grid grid-cols-12 gap-2 text-center text-xs opacity-60">
-                  {["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].map(
-                    (month) => (
-                      <span key={month}>{month}</span>
-                    )
-                  )}
-                </div>
+              <div className="grid grid-cols-12 gap-1 text-center text-[9px] opacity-60 sm:gap-2 sm:text-xs">
+                {monthLabels.map((month, index) => (
+                  <span
+                    key={month}
+                    // Keep every label's grid slot (so points stay aligned)
+                    // but only render every other one on very small screens.
+                    className={index % 2 !== 0 ? "invisible sm:visible" : ""}
+                  >
+                    {month}
+                  </span>
+                ))}
               </div>
             </div>
           </section>

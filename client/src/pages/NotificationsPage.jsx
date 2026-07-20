@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { auth } from "../firebase";
 import useRole from "../hooks/useRole";
-import useNotifications from "../hooks/useNotifications";
+import useNotifications from "../hooks/useNotifications.js";
 
 import {
   markNotificationAsRead,

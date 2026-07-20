@@ -10,7 +10,7 @@ import {
   Users,
 } from "lucide-react";
 import { auth } from "../firebase";
-import { getUserRole } from "../services/userService";
+import useRole from "../hooks/useRole";
 import { listenNotifications } from "../services/notificationService";
 import { listenBroadcasts } from "../services/broadcastService";
 import { getUserProfile } from "../services/userService";
@@ -20,8 +20,12 @@ export default function Sidebar() {
   const location = useLocation();
   const { darkMode } = useTheme();
 
-  const [role, setRole] = useState("user");
-  const [loadingRole, setLoadingRole] = useState(true);
+  // Role now comes from the shared RoleProvider (see
+  // src/context/RoleContext.jsx) instead of Sidebar running its own
+  // onAuthStateChanged + getUserRole() — that duplication was firing a
+  // second, independent role fetch every time auth state changed.
+  const role = useRole();
+
   const [notifications, setNotifications] = useState([]);
   const [broadcasts, setBroadcasts] = useState([]);
   const [lastSeenBroadcastAt, setLastSeenBroadcastAt] = useState(null);
@@ -29,52 +33,41 @@ export default function Sidebar() {
   useEffect(() => {
     let unsubscribeNotifications = () => {};
     let unsubscribeBroadcasts = () => {};
+    let cancelled = false;
 
-    const unsubscribeAuth = auth.onAuthStateChanged(async (user) => {
-      unsubscribeNotifications();
-      unsubscribeBroadcasts();
+    const user = auth.currentUser;
 
-      if (!user) {
-        setRole("user");
-        setNotifications([]);
-        setBroadcasts([]);
-        setLoadingRole(false);
-        return;
-      }
+    // Wait until we have both a signed-in user and a resolved role
+    // before deciding which listeners to set up.
+    if (!user || role === null) {
+      setNotifications([]);
+      setBroadcasts([]);
+      return () => {};
+    }
 
-      try {
-        const userRole = await getUserRole(user.uid);
-        setRole(userRole);
+    (async () => {
+      if (role !== "admin") {
+        unsubscribeNotifications = listenNotifications(user.uid, setNotifications);
 
-        if (userRole !== "admin") {
-          unsubscribeNotifications = listenNotifications(
-            user.uid,
-            setNotifications
-          );
-
-          const profile = await getUserProfile(user.uid).catch(() => null);
+        const profile = await getUserProfile(user.uid).catch(() => null);
+        if (!cancelled) {
           setLastSeenBroadcastAt(profile?.lastSeenBroadcastAt || null);
-        } else {
-          setNotifications([]);
         }
-
-        // One announcement channel, visible to everyone — used here just
-        // to badge unread announcements for regular users.
-        unsubscribeBroadcasts = listenBroadcasts(setBroadcasts, () => setBroadcasts([]));
-      } catch (err) {
-        console.error("Sidebar Error:", err);
-        setRole("user");
-      } finally {
-        setLoadingRole(false);
+      } else {
+        setNotifications([]);
       }
-    });
+
+      // One announcement channel, visible to everyone — used here just
+      // to badge unread announcements for regular users.
+      unsubscribeBroadcasts = listenBroadcasts(setBroadcasts, () => setBroadcasts([]));
+    })();
 
     return () => {
+      cancelled = true;
       unsubscribeNotifications();
       unsubscribeBroadcasts();
-      unsubscribeAuth();
     };
-  }, []);
+  }, [role]);
 
   const toMillis = (ts) => ts?.toMillis?.() ?? (ts?.seconds ? ts.seconds * 1000 : 0);
 
@@ -192,7 +185,7 @@ export default function Sidebar() {
               : "border-gray-200 text-gray-500"
           }`}
         >
-          Role: {loadingRole ? "Loading..." : role.toUpperCase()}
+          Role: {role === null ? "Loading..." : role.toUpperCase()}
         </div>
 
         <nav className="mt-4 space-y-1 px-3">

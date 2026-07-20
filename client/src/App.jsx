@@ -1,10 +1,13 @@
 import AppRoutes from "./routes/AppRoutes";
 import AuthGate from "./auth/AuthGate";
+import { RoleProvider } from "./context/RoleContext";
 
 export default function App() {
   return (
     <AuthGate>
-      <AppRoutes />
+      <RoleProvider>
+        <AppRoutes />
+      </RoleProvider>
     </AuthGate>
   );
 }

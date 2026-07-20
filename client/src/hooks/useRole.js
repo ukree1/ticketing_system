@@ -1,28 +1,8 @@
-import { useEffect, useState } from "react";
-import { auth } from "../firebase";
-import { getUserRole } from "../services/userService";
-
-export default function useRole() {
-  const [role, setRole] = useState(null);
-
-  useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged(async (user) => {
-      if (!user) {
-        setRole(null);
-        return;
-      }
-
-      try {
-        const userRole = await getUserRole(user.uid);
-        setRole(userRole);
-      } catch (error) {
-        console.error("Failed to get user role:", error);
-        setRole("user");
-      }
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  return role;
-}
+// useRole() used to open its own onAuthStateChanged subscription and
+// call getUserRole() independently, which meant every component using
+// this hook (Navbar, Dashboard, ...) duplicated the same Firestore read
+// on every auth event. Role is now owned by a single RoleProvider
+// (see src/context/RoleContext.jsx) — this file just re-exports the
+// context-backed hook so every existing `import useRole from
+// "../hooks/useRole"` keeps working unchanged.
+export { default, useRoleState } from "../context/RoleContext";
