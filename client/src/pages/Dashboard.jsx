@@ -37,6 +37,8 @@ export default function Dashboard() {
     inProgress: 0,
     approved: 0,
     declined: 0,
+    monthlyCounts: new Array(12).fill(0),
+    year: new Date().getFullYear(),
   });
 
   const [notifOpen, setNotifOpen] = useState(false);
@@ -51,7 +53,15 @@ export default function Dashboard() {
       unsubscribeDashboard();
 
       if (!user) {
-        setStats({ total: 0, pending: 0, inProgress: 0, approved: 0, declined: 0 });
+        setStats({
+          total: 0,
+          pending: 0,
+          inProgress: 0,
+          approved: 0,
+          declined: 0,
+          monthlyCounts: new Array(12).fill(0),
+          year: new Date().getFullYear(),
+        });
         return;
       }
 
@@ -166,8 +176,11 @@ export default function Dashboard() {
     },
   ];
 
-  const monthlyTickets = [8, 14, 11, 18, 24, 21, 28, 32, 27, 35, 31, 40];
+  // Real per-month ticket counts from Firestore data (see
+  // dashboardService.listenDashboardStats), not the old hardcoded array.
+  const monthlyTickets = stats.monthlyCounts || new Array(12).fill(0);
   const maxMonthly = Math.max(...monthlyTickets, 1);
+  const hasMonthlyData = monthlyTickets.some((v) => v > 0);
 
   const linePoints = monthlyTickets
     .map((value, index) => {
@@ -335,30 +348,36 @@ export default function Dashboard() {
               <h2 className="flex items-center gap-2 text-sm font-semibold sm:text-base lg:text-lg">
                 <TrendingUp size={16} className="text-indigo-500 sm:hidden" />
                 <TrendingUp size={18} className="hidden text-indigo-500 sm:block" />
-                Monthly Line Chart
+                Monthly Tickets {stats.year ? `(${stats.year})` : ""}
               </h2>
               <ListChecks className="text-indigo-500" size={20} />
             </div>
 
             {/* Fully fluid — no forced min-width / horizontal scroll on mobile */}
             <div className="w-full">
-              <svg viewBox="0 0 100 110" className="h-40 w-full sm:h-56 lg:h-64" preserveAspectRatio="none">
-                <polyline
-                  points={linePoints}
-                  fill="none"
-                  stroke="#6366f1"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  vectorEffect="non-scaling-stroke"
-                />
+              {hasMonthlyData ? (
+                <svg viewBox="0 0 100 110" className="h-40 w-full sm:h-56 lg:h-64" preserveAspectRatio="none">
+                  <polyline
+                    points={linePoints}
+                    fill="none"
+                    stroke="#6366f1"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    vectorEffect="non-scaling-stroke"
+                  />
 
-                {monthlyTickets.map((value, index) => {
-                  const x = (index / (monthlyTickets.length - 1)) * 100;
-                  const y = 100 - (value / maxMonthly) * 85;
-                  return <circle key={index} cx={x} cy={y} r="1.8" fill="#6366f1" />;
-                })}
-              </svg>
+                  {monthlyTickets.map((value, index) => {
+                    const x = (index / (monthlyTickets.length - 1)) * 100;
+                    const y = 100 - (value / maxMonthly) * 85;
+                    return <circle key={index} cx={x} cy={y} r="1.8" fill="#6366f1" />;
+                  })}
+                </svg>
+              ) : (
+                <div className="flex h-40 items-center justify-center text-sm opacity-60 sm:h-56 lg:h-64">
+                  No tickets created yet this year.
+                </div>
+              )}
 
               <div className="grid grid-cols-12 gap-1 text-center text-[9px] opacity-60 sm:gap-2 sm:text-xs">
                 {monthLabels.map((month, index) => (
