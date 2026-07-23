@@ -1,4 +1,4 @@
-import { db } from "../firebase";
+import { db, auth } from "../firebase";
 import {
   collection,
   addDoc,
@@ -14,15 +14,10 @@ import {
 } from "firebase/firestore";
 
 import { getAdminUsers } from "./userService";
+import { authFlags } from "../utils/authFlags";
 
 const notifRef = collection(db, "notifications");
 
-// =======================
-// CREATE NOTIFICATION
-// =======================
-// `meta` accepts any extra ticket snapshot fields you want the notification
-// card to render without a second Firestore read, e.g. ticketTitle,
-// priority, requesterUid, requesterEmail.
 export const createNotification = async ({
   type = "system",
   message,
@@ -53,16 +48,8 @@ export const createNotification = async ({
   }
 };
 
-// Semantic alias for notifying a single person (e.g. telling a ticket
-// owner their ticket was approved/declined/assigned). Same implementation
-// as createNotification, kept separate so call sites read clearly.
 export const notifyUser = createNotification;
 
-// =======================
-// NOTIFY ALL ADMINS
-// =======================
-// Fan-out a single notification to every admin account. Used when a
-// regular user submits a new ticket so admins know to review it.
 export const notifyAdmins = async ({
   type = "system",
   message,
@@ -93,9 +80,6 @@ export const notifyAdmins = async ({
   }
 };
 
-// =======================
-// REALTIME LISTENER
-// =======================
 export const listenNotifications = (
   uid,
   callback,
@@ -112,34 +96,31 @@ export const listenNotifications = (
     q,
     (snapshot) => {
       const notifications = snapshot.docs
-        .map((d) => ({
-          id: d.id,
-          ...d.data(),
-        }))
-        // Sorted client-side so we don't need a composite Firestore index
-        // for (targetUid ==) + (createdAt desc).
+        .map((d) => ({ id: d.id, ...d.data() }))
         .sort(
           (a, b) =>
-            (b.createdAt?.toMillis?.() || 0) -
-            (a.createdAt?.toMillis?.() || 0)
+            (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0)
         )
-        // Safety cap: keeps the sidebar snappy for accounts that
-        // accumulate a lot of history. Bump or remove once old
-        // notifications are archived/pruned server-side.
         .slice(0, 100);
 
       callback(notifications);
     },
     (error) => {
+      // Same sign-out race as broadcasts: this listener can still be
+      // live for a tick after the auth token is invalidated. Not a
+      // real problem — swallow it quietly instead of logging it as one.
+      if (
+        error.code === "permission-denied" &&
+        (authFlags.loggingOut || !auth.currentUser)
+      ) {
+        return;
+      }
       console.error("Notification listener error:", error.code, error.message);
       errorCallback(error);
     }
   );
 };
 
-// =======================
-// MARK AS READ
-// =======================
 export const markNotificationAsRead = async (id) => {
   if (!id) return;
 
@@ -153,9 +134,6 @@ export const markNotificationAsRead = async (id) => {
   }
 };
 
-// =======================
-// MARK ALL AS READ
-// =======================
 export const markAllNotificationsAsRead = async (uid) => {
   if (!uid) return;
 
@@ -180,9 +158,6 @@ export const markAllNotificationsAsRead = async (uid) => {
   }
 };
 
-// =======================
-// DELETE NOTIFICATION
-// =======================
 export const deleteNotification = async (id) => {
   if (!id) return;
 

@@ -46,6 +46,15 @@ export default function Dashboard() {
   const [users, setUsers] = useState([]);
   const [busyId, setBusyId] = useState(null);
 
+  // Force the <body> background to match the theme so there's no white
+  // flash/edge behind MainLayout (sidebar, scroll overscroll, etc.)
+  useEffect(() => {
+    document.body.style.backgroundColor = darkMode ? "#000000" : "#f3f4f6";
+    return () => {
+      document.body.style.backgroundColor = "";
+    };
+  }, [darkMode]);
+
   useEffect(() => {
     let unsubscribeDashboard = () => {};
 
@@ -78,8 +87,6 @@ export default function Dashboard() {
     };
   }, []);
 
-  // Admins need the user list to populate the "Assign to…" dropdown in
-  // the notification sidebar.
   useEffect(() => {
     if (!isAdmin) return;
 
@@ -97,8 +104,6 @@ export default function Dashboard() {
 
   const handleDelete = (id) => deleteNotification(id);
 
-  // assignTicket() already creates the "ticket_assigned" notification for
-  // the assignee, so there's nothing extra to send here.
   const handleAssign = async (notification, user) => {
     if (!user) return;
     setBusyId(notification.id);
@@ -120,8 +125,6 @@ export default function Dashboard() {
     }
   };
 
-  // reviewTicket() already notifies the ticket's creator with the right
-  // status message, so there's nothing extra to send here either.
   const handleStatusChange = async (notification, status) => {
     setBusyId(notification.id);
 
@@ -176,8 +179,6 @@ export default function Dashboard() {
     },
   ];
 
-  // Real per-month ticket counts from Firestore data (see
-  // dashboardService.listenDashboardStats), not the old hardcoded array.
   const monthlyTickets = stats.monthlyCounts || new Array(12).fill(0);
   const maxMonthly = Math.max(...monthlyTickets, 1);
   const hasMonthlyData = monthlyTickets.some((v) => v > 0);
@@ -204,6 +205,14 @@ export default function Dashboard() {
 
   return (
     <MainLayout>
+      {/* Full-bleed background layer — sits behind everything so no white
+          edges show through MainLayout's own container/padding */}
+      <div
+        className={`fixed inset-0 -z-10 transition-colors duration-300 ${
+          darkMode ? "bg-black" : "bg-gray-100"
+        }`}
+      />
+
       <div
         className={`min-h-screen w-full transition-all duration-300 ${
           darkMode ? "bg-black text-white" : "bg-gray-100 text-gray-900"
@@ -353,7 +362,6 @@ export default function Dashboard() {
               <ListChecks className="text-indigo-500" size={20} />
             </div>
 
-            {/* Fully fluid — no forced min-width / horizontal scroll on mobile */}
             <div className="w-full">
               {hasMonthlyData ? (
                 <svg viewBox="0 0 100 110" className="h-40 w-full sm:h-56 lg:h-64" preserveAspectRatio="none">
@@ -383,8 +391,6 @@ export default function Dashboard() {
                 {monthLabels.map((month, index) => (
                   <span
                     key={month}
-                    // Keep every label's grid slot (so points stay aligned)
-                    // but only render every other one on very small screens.
                     className={index % 2 !== 0 ? "invisible sm:visible" : ""}
                   >
                     {month}

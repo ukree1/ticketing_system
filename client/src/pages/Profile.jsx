@@ -300,15 +300,7 @@ export default function Profile() {
         </div>
 
         {/* SESSION */}
-        <div className={`p-6 rounded-2xl shadow-sm border ${card}`}>
-          <button
-            onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white py-3 rounded-xl font-medium transition"
-          >
-            <LogOut size={16} />
-            Logout
-          </button>
-        </div>
+
 
       </div>
     </div>

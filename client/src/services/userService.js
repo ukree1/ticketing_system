@@ -31,14 +31,12 @@ export const createUserProfile = async (user) => {
 
   if (snap.exists()) return;
 
-  const role =
-    user.email === ADMIN_EMAIL ? "admin" : "user";
+  const role = user.email === ADMIN_EMAIL ? "admin" : "user";
 
   await setDoc(ref, {
     uid: user.uid,
     email: user.email,
-    name:
-      user.displayName || user.email.split("@")[0],
+    name: user.displayName || user.email.split("@")[0],
     role,
     disabled: false,
     theme: "light",
@@ -47,16 +45,6 @@ export const createUserProfile = async (user) => {
   });
 };
 
-// =======================
-// CREATE USER (ADMIN ACTION)
-// =======================
-// Lets an admin create an account for someone else without being
-// signed out themselves. Firebase Auth normally switches the active
-// session to whichever user was just created with
-// createUserWithEmailAndPassword — so we spin up a throwaway
-// secondary app instance, create the account there, write the
-// Firestore profile with the main `db`, then tear the secondary
-// instance down. The admin's own session on `auth` is never touched.
 export const createUser = async ({ email, password, role = "user" }) => {
   const cleanEmail = (email || "").trim();
 
@@ -68,10 +56,7 @@ export const createUser = async ({ email, password, role = "user" }) => {
     throw new Error("Password must be at least 6 characters.");
   }
 
-  const secondaryApp = initializeApp(
-    firebaseConfig,
-    `secondary-${Date.now()}`
-  );
+  const secondaryApp = initializeApp(firebaseConfig, `secondary-${Date.now()}`);
   const secondaryAuth = getAuth(secondaryApp);
 
   try {
@@ -108,23 +93,12 @@ export const createUser = async ({ email, password, role = "user" }) => {
 
     throw new Error(err.message || "Failed to create account.");
   } finally {
-    // Clean up the throwaway auth session + app instance either way.
     await signOut(secondaryAuth).catch(() => {});
     await deleteApp(secondaryApp).catch(() => {});
   }
 };
 
-// =======================
-// GET USER ROLE (cached)
-// =======================
-// getUserRole() is called from a lot of places independently — the
-// RoleProvider on auth change, dashboardService and ticketService when
-// setting up their listeners, and getUsers() below. Without caching,
-// every one of those triggers its own Firestore read for the same uid
-// at nearly the same moment, which is what produced the console spam
-// and duplicate reads. We memoize the *in-flight promise* per uid so
-// concurrent/duplicate calls all resolve from the same read.
-const roleCache = new Map(); // uid -> Promise<string>
+const roleCache = new Map();
 
 export const getUserRole = async (uid) => {
   if (!uid) {
@@ -148,7 +122,7 @@ export const getUserRole = async (uid) => {
       return snap.data().role || "user";
     } catch (err) {
       console.error("getUserRole failed for", uid, err.code || err.message);
-      roleCache.delete(uid); // don't cache a failed lookup
+      roleCache.delete(uid);
       return "user";
     }
   })();
@@ -157,8 +131,6 @@ export const getUserRole = async (uid) => {
   return promise;
 };
 
-// Call after anything that can change a stored role, or on sign-out,
-// so the next getUserRole() call re-reads instead of serving stale data.
 export const clearRoleCache = (uid) => {
   if (uid) {
     roleCache.delete(uid);
@@ -226,19 +198,13 @@ export const getUsers = async () => {
         ...doc.data(),
       }))
       .filter((user) => user.role === "user" && !user.disabled)
-      .sort((a, b) =>
-        (a.email || "").localeCompare(b.email || "")
-      );
+      .sort((a, b) => (a.email || "").localeCompare(b.email || ""));
   } catch (err) {
     console.error(err);
     return [];
   }
 };
 
-// =======================
-// GET ADMIN USERS
-// =======================
-// Used to notify every admin when a regular user submits a new ticket.
 export const getAdminUsers = async () => {
   try {
     const snap = await getDocs(collection(db, "users"));
@@ -255,11 +221,71 @@ export const getAdminUsers = async () => {
   }
 };
 
-export const updateUserSettings = async (uid, data) => {
-  await updateDoc(doc(db, "users", uid), {
-    ...data,
-    updatedAt: serverTimestamp(),
-  });
+// =======================
+// UPDATE USER SETTINGS
+// =======================
+// Updates a user's own settings doc (theme, lastSeenBroadcastAt, etc).
+//
+// Self-healing for two situations that both surface as a generic
+// "permission-denied", even for a fully legitimate, signed-in owner:
+//
+//  1. The doc doesn't exist at all — recreate it from the live auth
+//     user.
+//  2. The doc exists but is missing one of the fields the security
+//     rules compare (role/disabled/uid/email) — usually from an
+//     account created before that field was added to the schema.
+//     Reading a missing map key with dot-access in Firestore Rules
+//     throws an evaluation error, which Firestore reports back as
+//     permission-denied rather than a rules bug. We backfill any
+//     missing field with its schema default before writing, so the
+//     document converges back to shape. (The rules file itself
+//     should also use `.get(field, default)` — see updated
+//     firestore.rules — this backfill is defense in depth on top of
+//     that.)
+export const updateUserSettings = async (uid, data, _isRetry = false) => {
+  if (!uid) return;
+
+  const ref = doc(db, "users", uid);
+
+  try {
+    const snap = await getDoc(ref);
+
+    if (!snap.exists()) {
+      if (auth.currentUser?.uid === uid) {
+        await createUserProfile(auth.currentUser);
+      } else {
+        throw new Error(`updateUserSettings: no profile found for ${uid}`);
+      }
+    } else {
+      const existing = snap.data();
+      const backfill = {};
+
+      if (existing.role === undefined) {
+        backfill.role = existing.email === ADMIN_EMAIL ? "admin" : "user";
+      }
+      if (existing.disabled === undefined) {
+        backfill.disabled = false;
+      }
+      if (existing.uid === undefined) {
+        backfill.uid = uid;
+      }
+      if (existing.email === undefined && auth.currentUser?.uid === uid) {
+        backfill.email = auth.currentUser.email;
+      }
+
+      if (Object.keys(backfill).length > 0) {
+        await setDoc(ref, backfill, { merge: true });
+      }
+    }
+
+    await updateDoc(ref, { ...data, updatedAt: serverTimestamp() });
+  } catch (err) {
+    if (err.code === "permission-denied" && !_isRetry) {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      return updateUserSettings(uid, data, true);
+    }
+    throw err;
+  }
 };
 
 export const updateUserRole = async (uid, role) => {
@@ -278,8 +304,6 @@ export const updateUserRole = async (uid, role) => {
     updatedAt: serverTimestamp(),
   });
 
-  // The cached role for this uid is now stale — clear it so the next
-  // getUserRole() call re-reads the new value instead of the old one.
   clearRoleCache(uid);
 };
 
@@ -299,6 +323,7 @@ export const toggleUserStatus = async (uid, disabled) => {
     updatedAt: serverTimestamp(),
   });
 };
+
 export const deleteUser = async (uid) => {
   const snap = await getDoc(doc(db, "users", uid));
 
@@ -321,7 +346,6 @@ export const resetUserPassword = async (email) => {
 
   try {
     await sendPasswordResetEmail(auth, email);
-
     console.log("Password reset email sent to:", email);
   } catch (err) {
     console.error("Reset password error:", err);

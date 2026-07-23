@@ -1,135 +1,177 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { LogOut, ArrowLeft } from "lucide-react";
+import { Bell, LogOut, User } from "lucide-react";
 
+import MainLayout from "../layouts/MainLayout";
 import { useTheme } from "../context/ThemeContext";
 import { logoutUser } from "../auth/authService";
+import { auth } from "../firebase";
 
 export default function Settings() {
-  const { darkMode, setDarkMode } = useTheme();
+  const { darkMode } = useTheme();
   const navigate = useNavigate();
 
-  const handleToggleDarkMode = () => {
-    const newMode = !darkMode;
-    setDarkMode(newMode);
-    localStorage.setItem("darkMode", JSON.stringify(newMode));
-  };
+  const [emailNotifs, setEmailNotifs] = useState(true);
+  const [pushNotifs, setPushNotifs] = useState(true);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   const handleLogout = async () => {
+    if (loggingOut) return;
+    setLoggingOut(true);
+
     try {
       await logoutUser();
       navigate("/login", { replace: true });
     } catch (err) {
       console.error("Logout Error:", err);
       alert("Failed to logout.");
+    } finally {
+      setLoggingOut(false);
     }
   };
 
-  const goToDashboard = () => {
-    navigate("/dashboard");
-  };
+  const cardClass = `rounded-2xl border shadow-sm transition-all ${
+    darkMode ? "bg-gray-900 border-gray-800" : "bg-white border-gray-200"
+  }`;
+
+  const subtleText = darkMode ? "text-gray-400" : "text-gray-500";
 
   return (
-    <div
-      className={`min-h-screen transition-all duration-300 ${
-        darkMode
-          ? "bg-gray-950 text-white"
-          : "bg-gray-100 text-gray-900"
-      }`}
-    >
-      <div className="max-w-3xl mx-auto px-6 py-10 space-y-6">
+    <MainLayout>
+      <div className="max-w-3xl mx-auto space-y-6">
 
-        {/* HEADER (Refined UX Layout) */}
-        <div
-          className={`rounded-2xl border shadow-sm transition-all p-6 ${
-            darkMode
-              ? "bg-gray-900 border-gray-800"
-              : "bg-white border-gray-200"
-          }`}
-        >
-          <div className="flex items-center justify-between">
-
-            {/* Left */}
-            <div className="flex items-center gap-4">
-              <button
-                onClick={goToDashboard}
-                className={`p-2 rounded-xl transition-all active:scale-95 ${
-                  darkMode
-                    ? "hover:bg-gray-800"
-                    : "hover:bg-gray-200"
-                }`}
-              >
-                <ArrowLeft size={20} />
-              </button>
-
-              <div>
-                <h1 className="text-2xl font-bold tracking-tight">
-                  Settings
-                </h1>
-                <p
-                  className={`text-sm mt-1 ${
-                    darkMode ? "text-gray-400" : "text-gray-500"
-                  }`}
-                >
-                  Manage your account and preferences
-                </p>
-              </div>
+        {/* ACCOUNT CARD */}
+        <div className={`${cardClass} p-6`}>
+          <div className="flex items-center gap-4">
+            <div
+              className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${
+                darkMode
+                  ? "bg-indigo-500/15 text-indigo-300"
+                  : "bg-indigo-100 text-indigo-600"
+              }`}
+            >
+              <User size={20} />
             </div>
 
-            {/* Right: Theme Toggle (more polished UX control) */}
-            <div className="flex items-center gap-3">
-              <span
-                className={`text-xs font-medium ${
-                  darkMode ? "text-gray-400" : "text-gray-500"
-                }`}
-              >
-                Theme
-              </span>
-
-              <button
-                onClick={handleToggleDarkMode}
-                className={`relative w-14 h-7 flex items-center rounded-full transition-all duration-300 ${
-                  darkMode ? "bg-blue-600" : "bg-gray-300"
-                }`}
-              >
-                <span
-                  className={`absolute h-5 w-5 bg-white rounded-full shadow-md transform transition-all duration-300 ${
-                    darkMode ? "translate-x-8" : "translate-x-1"
-                  }`}
-                />
-              </button>
+            <div className="min-w-0">
+              <p className="truncate font-semibold">
+                {auth.currentUser?.email}
+              </p>
+              <p className={`text-sm ${subtleText}`}>
+                Signed in account
+              </p>
             </div>
           </div>
         </div>
 
-        {/* SESSION CARD (Upgraded hierarchy + clarity) */}
-        <div
-          className={`rounded-2xl border shadow-sm p-6 transition-all ${
-            darkMode
-              ? "bg-gray-900 border-gray-800"
-              : "bg-white border-gray-200"
-          }`}
-        >
-          <div className="mb-5">
-            <h2 className="text-lg font-semibold">Session</h2>
-            <p
-              className={`text-sm mt-1 ${
-                darkMode ? "text-gray-400" : "text-gray-500"
+        {/* NOTIFICATIONS CARD */}
+        <div className={`${cardClass} p-6 space-y-5`}>
+          <div className="flex items-center gap-3">
+            <div
+              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
+                darkMode
+                  ? "bg-indigo-500/15 text-indigo-300"
+                  : "bg-indigo-100 text-indigo-600"
               }`}
             >
+              <Bell size={18} />
+            </div>
+
+            <div>
+              <p className="font-semibold">Notifications</p>
+              <p className={`text-sm ${subtleText}`}>
+                Choose how you want to be notified.
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-4 pl-1">
+
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium">
+                  Email notifications
+                </p>
+                <p className={`text-xs ${subtleText}`}>
+                  Ticket updates sent to your inbox.
+                </p>
+              </div>
+
+              <button
+                onClick={() => setEmailNotifs((v) => !v)}
+                aria-label="Toggle email notifications"
+                className={`relative w-12 h-6 flex items-center rounded-full transition-all duration-300 ${
+                  emailNotifs
+                    ? "bg-blue-600"
+                    : darkMode
+                    ? "bg-gray-700"
+                    : "bg-gray-300"
+                }`}
+              >
+                <span
+                  className={`absolute h-4 w-4 bg-white rounded-full shadow-md transform transition-all duration-300 ${
+                    emailNotifs
+                      ? "translate-x-7"
+                      : "translate-x-1"
+                  }`}
+                />
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium">
+                  Push notifications
+                </p>
+                <p className={`text-xs ${subtleText}`}>
+                  Real-time alerts in the app.
+                </p>
+              </div>
+
+              <button
+                onClick={() => setPushNotifs((v) => !v)}
+                aria-label="Toggle push notifications"
+                className={`relative w-12 h-6 flex items-center rounded-full transition-all duration-300 ${
+                  pushNotifs
+                    ? "bg-blue-600"
+                    : darkMode
+                    ? "bg-gray-700"
+                    : "bg-gray-300"
+                }`}
+              >
+                <span
+                  className={`absolute h-4 w-4 bg-white rounded-full shadow-md transform transition-all duration-300 ${
+                    pushNotifs
+                      ? "translate-x-7"
+                      : "translate-x-1"
+                  }`}
+                />
+              </button>
+            </div>
+
+          </div>
+        </div>
+
+        {/* SESSION CARD */}
+        <div className={`${cardClass} p-6`}>
+          <div className="mb-5">
+            <h2 className="text-lg font-semibold">Session</h2>
+            <p className={`text-sm mt-1 ${subtleText}`}>
               Manage your login session and security access.
             </p>
           </div>
 
           <button
             onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold transition-all active:scale-[0.98] bg-red-600 hover:bg-red-700 text-white shadow-sm"
+            disabled={loggingOut}
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold transition-all active:scale-[0.98] bg-red-600 hover:bg-red-700 text-white shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
           >
             <LogOut size={18} />
-            Logout
+            {loggingOut ? "Logging out…" : "Logout"}
           </button>
         </div>
 
       </div>
-    </div>
+    </MainLayout>
   );
 }

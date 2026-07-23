@@ -1,9 +1,16 @@
 import Sidebar from "../components/Sidebar"
 import Navbar from "../components/Navbar"
+import { useTheme } from "../context/ThemeContext"
 
 export default function MainLayout({ children }) {
+  const { darkMode } = useTheme();
+
   return (
-    <div className="min-h-screen bg-slate-100 flex">
+    <div
+      className={`min-h-screen flex transition-colors duration-300 ${
+        darkMode ? "bg-black" : "bg-slate-100"
+      }`}
+    >
       <Sidebar />
 
       {/* ml-64 must only apply at lg+, since the fixed sidebar itself

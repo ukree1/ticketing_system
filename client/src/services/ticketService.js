@@ -19,12 +19,17 @@ import { notifyAdmins, createNotification } from "./notificationService";
 
 const colRef = collection(db, "tickets");
 
+// Manual switch — flip to true only when you need to trace ticket
+// flow locally. Leave false to keep the console clean.
+const DEBUG_TICKETS = false;
+
+const debugLog = (...args) => {
+  if (DEBUG_TICKETS) console.log(...args);
+};
+
 // =======================
 // CREATE TICKET
 // =======================
-// Any signed-in user can submit a ticket. New tickets start as "pending"
-// so an admin can review them and move them to in_progress / approved /
-// declined. If a regular user creates the ticket, every admin gets notified.
 export const createTicket = async (data) => {
   const { auth } = await import("../firebase");
   const user = auth.currentUser;
@@ -34,8 +39,8 @@ export const createTicket = async (data) => {
   }
 
   try {
-    console.log("========== CREATE TICKET ==========");
-    console.log("Created By:", user.uid);
+    debugLog("========== CREATE TICKET ==========");
+    debugLog("Created By:", user.uid);
 
     const creatorRole = await getUserRole(user.uid);
 
@@ -56,9 +61,8 @@ export const createTicket = async (data) => {
       updatedAt: serverTimestamp(),
     });
 
-    console.log("✅ Ticket Created:", docRef.id);
+    debugLog("✅ Ticket Created:", docRef.id);
 
-    // Notify the assignee directly, if one was set (admin-only action).
     if (data.assignedToUid) {
       await createNotification({
         type: "ticket_assigned",
@@ -68,14 +72,9 @@ export const createTicket = async (data) => {
         priority: data.priority || "low",
         targetUid: data.assignedToUid,
       });
-      console.log("✅ Assignment notification created.");
+      debugLog("✅ Assignment notification created.");
     }
 
-    // Let every admin know a new ticket needs review. The extra fields
-    // (ticketTitle, priority, requesterUid/Email) aren't required by
-    // Firestore — they just let the notification bell render a rich card
-    // and let admin actions (assign/approve/decline) know who to notify
-    // back, without a second read.
     if (creatorRole !== "admin") {
       await notifyAdmins({
         type: "ticket_created",
@@ -86,7 +85,7 @@ export const createTicket = async (data) => {
         requesterUid: user.uid,
         requesterEmail: user.email,
       });
-      console.log("✅ Admins notified of new ticket.");
+      debugLog("✅ Admins notified of new ticket.");
     }
 
     return docRef;
@@ -144,23 +143,23 @@ export const listenToTickets = async (callback, user) => {
     return () => {};
   }
 
-  console.log("=================================");
-  console.log("START TICKET LISTENER");
-  console.log("User:", user);
+  debugLog("=================================");
+  debugLog("START TICKET LISTENER");
+  debugLog("User:", user);
 
   try {
     const role = await getUserRole(user.uid);
 
-    console.log("Detected Role:", role);
+    debugLog("Detected Role:", role);
 
     let q;
 
     if (role === "admin") {
-      console.log("Loading ALL tickets");
+      debugLog("Loading ALL tickets");
 
       q = query(colRef, orderBy("createdAt", "desc"));
     } else {
-      console.log("Loading USER tickets");
+      debugLog("Loading USER tickets");
 
       q = query(
         colRef,
@@ -173,9 +172,9 @@ export const listenToTickets = async (callback, user) => {
       q,
 
       (snapshot) => {
-        console.log("=================================");
-        console.log("TICKET SNAPSHOT RECEIVED");
-        console.log("Documents:", snapshot.size);
+        debugLog("=================================");
+        debugLog("TICKET SNAPSHOT RECEIVED");
+        debugLog("Documents:", snapshot.size);
 
         const tickets = snapshot.docs.map((d) => ({
           id: d.id,
@@ -186,6 +185,8 @@ export const listenToTickets = async (callback, user) => {
       },
 
       (error) => {
+        // Real failures stay logged regardless of DEBUG_TICKETS — this
+        // is an actual error path, not routine trace output.
         console.error("=================================");
         console.error("🔥 FIRESTORE TICKET LISTENER ERROR");
         console.error("Code:", error.code);
@@ -210,7 +211,7 @@ export const updateTicket = async (id, data) => {
       updatedAt: serverTimestamp(),
     });
 
-    console.log("✅ Ticket updated:", id);
+    debugLog("✅ Ticket updated:", id);
   } catch (err) {
     console.error("updateTicket:", err);
     throw err;
@@ -220,9 +221,6 @@ export const updateTicket = async (id, data) => {
 // =======================
 // UPDATE STATUS
 // =======================
-// Plain status change with no notification side-effect. Prefer
-// reviewTicket() below for admin decisions, since it also lets the
-// ticket's creator know what happened.
 export const updateTicketStatus = async (id, status) => {
   try {
     await updateDoc(doc(db, "tickets", id), {
@@ -230,7 +228,7 @@ export const updateTicketStatus = async (id, status) => {
       updatedAt: serverTimestamp(),
     });
 
-    console.log("✅ Status updated:", id);
+    debugLog("✅ Status updated:", id);
   } catch (err) {
     console.error("updateTicketStatus:", err);
     throw err;
@@ -240,8 +238,6 @@ export const updateTicketStatus = async (id, status) => {
 // =======================
 // REVIEW TICKET (admin action)
 // =======================
-// status: "pending" | "in_progress" | "approved" | "declined"
-// Updates the ticket and lets the ticket's creator know a decision was made.
 const statusMessages = {
   pending: "set back to pending",
   in_progress: "moved to In Progress",
@@ -258,7 +254,7 @@ export const reviewTicket = async (ticket, status) => {
       updatedAt: serverTimestamp(),
     });
 
-    console.log("✅ Ticket reviewed:", ticket.id, status);
+    debugLog("✅ Ticket reviewed:", ticket.id, status);
 
     if (ticket.createdBy) {
       await createNotification({
@@ -291,9 +287,9 @@ export const assignTicket = async (
   ticketStatus = "pending"
 ) => {
   try {
-    console.log("========== ASSIGN TICKET ==========");
-    console.log("Ticket:", ticketId);
-    console.log("Assign UID:", assignedToUid);
+    debugLog("========== ASSIGN TICKET ==========");
+    debugLog("Ticket:", ticketId);
+    debugLog("Assign UID:", assignedToUid);
 
     const ref = doc(db, "tickets", ticketId);
 
@@ -304,7 +300,7 @@ export const assignTicket = async (
       updatedAt: serverTimestamp(),
     });
 
-    console.log("✅ Ticket assigned.");
+    debugLog("✅ Ticket assigned.");
 
     if (assignedToUid) {
       await createNotification({
@@ -316,7 +312,7 @@ export const assignTicket = async (
         targetUid: assignedToUid,
       });
 
-      console.log("✅ Notification created.");
+      debugLog("✅ Notification created.");
     }
   } catch (err) {
     console.error("assignTicket:", err);
@@ -330,7 +326,7 @@ export const assignTicket = async (
 export const deleteTicket = async (id) => {
   try {
     await deleteDoc(doc(db, "tickets", id));
-    console.log("✅ Ticket deleted:", id);
+    debugLog("✅ Ticket deleted:", id);
   } catch (err) {
     console.error("deleteTicket:", err);
     throw err;

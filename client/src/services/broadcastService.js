@@ -1,4 +1,4 @@
-import { db } from "../firebase";
+import { db, auth } from "../firebase";
 import {
   collection,
   addDoc,
@@ -8,6 +8,7 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { updateUserSettings } from "./userService";
+import { authFlags } from "../utils/authFlags";
 
 /**
  * One-way (admin -> everyone) announcement channel. Not tied to tickets.
@@ -37,6 +38,18 @@ export const listenBroadcasts = (onData, onError) => {
     q,
     (snap) => onData(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
     (err) => {
+      // A permission-denied error that fires while there's no signed-in
+      // user (or while a logout is actively in progress) is almost
+      // always the tail end of a sign-out race — this listener was
+      // still live for a split second after the auth token was
+      // invalidated. Not a real problem, so we swallow it quietly.
+      if (
+        err.code === "permission-denied" &&
+        (authFlags.loggingOut || !auth.currentUser)
+      ) {
+        return;
+      }
+
       console.error("listenBroadcasts:", err);
       onError?.(err);
     }
@@ -63,6 +76,8 @@ export const markBroadcastsSeen = async (uid) => {
   try {
     await updateUserSettings(uid, { lastSeenBroadcastAt: serverTimestamp() });
   } catch (err) {
-    console.error("markBroadcastsSeen:", err);
+    // Non-critical — failing to record "seen" shouldn't break the page
+    // or spam the console as if it were a real outage.
+    console.warn("markBroadcastsSeen (non-fatal):", err.message);
   }
 };

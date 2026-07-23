@@ -11,6 +11,7 @@ import {
 
 import { auth, db } from "../firebase";
 import { createUserProfile } from "../services/userService";
+import { authFlags } from "../utils/authFlags";
 
 // ======================
 // REGISTER
@@ -59,4 +60,22 @@ export const loginUser = async (email, password) => {
 // ======================
 // LOGOUT
 // ======================
-export const logoutUser = () => signOut(auth);
+// Flip the flag first so any Firestore listener callback that fires
+// during the brief window between "token invalidated" and "component
+// unmounted" (Sidebar's/Navbar's onSnapshot listeners in particular)
+// knows to treat a permission-denied error as expected sign-out noise
+// instead of a real failure.
+export const logoutUser = async () => {
+  authFlags.loggingOut = true;
+
+  try {
+    await signOut(auth);
+  } finally {
+    // Give React a tick to unmount listener-owning components before
+    // resetting the flag, so it doesn't mask a genuine error after a
+    // fresh login later in the session.
+    setTimeout(() => {
+      authFlags.loggingOut = false;
+    }, 1000);
+  }
+};

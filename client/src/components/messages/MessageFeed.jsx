@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Megaphone, Send, ShieldCheck } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { ArrowLeft, Megaphone, Send, ShieldCheck } from "lucide-react";
 import { auth } from "../../firebase";
 import { sendBroadcast, markBroadcastsSeen } from "../../services/broadcastService";
 
@@ -19,15 +20,27 @@ const formatTime = (ts) => {
  *   loading    boolean
  *   isAdmin    boolean
  *   darkMode   boolean
+ *   onBack     function (optional) — if provided, used instead of router back
  */
-export default function MessageFeed({ messages, loading, isAdmin, darkMode }) {
+export default function MessageFeed({ messages, loading, isAdmin, darkMode, onBack }) {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const bottomRef = useRef(null);
+  const navigate = useNavigate();
+
+  const handleBack = () => {
+    if (onBack) return onBack();
+    navigate(-1);
+  };
 
   useEffect(() => {
-    if (!isAdmin) markBroadcastsSeen(auth.currentUser?.uid);
+    const uid = auth.currentUser?.uid;
+    if (!isAdmin && uid) {
+      markBroadcastsSeen(uid).catch((err) => {
+        console.warn("markBroadcastsSeen (non-fatal):", err.message);
+      });
+    }
   }, [isAdmin]);
 
   useEffect(() => {
@@ -67,6 +80,16 @@ export default function MessageFeed({ messages, loading, isAdmin, darkMode }) {
           darkMode ? "border-gray-800" : "border-gray-100"
         }`}
       >
+        <button
+          onClick={handleBack}
+          aria-label="Go back"
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition active:scale-95 ${
+            darkMode ? "hover:bg-gray-800 text-gray-200" : "hover:bg-gray-100 text-gray-700"
+          }`}
+        >
+          <ArrowLeft size={18} />
+        </button>
+
         <span
           className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
             darkMode ? "bg-indigo-500/20 text-indigo-300" : "bg-indigo-100 text-indigo-600"
