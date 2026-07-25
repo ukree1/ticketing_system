@@ -37,6 +37,7 @@ export default function TicketRow({ ticket, refresh, role, onEdit }) {
     ? ticket.assignedToEmail
     : "Unassigned";
 
+
   const priorityBadge = (
     <span
       className={`inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-semibold ${

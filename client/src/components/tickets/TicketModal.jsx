@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { X, Ticket as TicketIcon, Clock, CheckCircle2, XCircle } from "lucide-react";
+import { DownloadCloud, Printer, X, Ticket as TicketIcon, Clock, CheckCircle2, XCircle } from "lucide-react";
 import {
   updateTicket,
   assignTicket,
@@ -35,6 +35,102 @@ export default function TicketModal({
 
   const [users, setUsers] = useState([]);
   const [assignedToUid, setAssignedToUid] = useState("");
+
+  const isApproved = status === "approved";
+
+  const getCsvContent = () => {
+    const columns = [
+      "Ticket ID",
+      "Title",
+      "Description",
+      "Status",
+      "Priority",
+      "Created By",
+      "Assigned To",
+      "Created Date",
+    ];
+
+    const values = [
+      ticket?.id || "",
+      title || "",
+      description || "",
+      status || "",
+      priority || "",
+      ticket?.createdByEmail || ticket?.createdBy || "",
+      ticket?.assignedToName || ticket?.assignedToEmail || "",
+      ticket?.createdAt?.toDate ? ticket.createdAt.toDate().toLocaleDateString() : "",
+    ];
+
+    const escaped = values.map((value) => {
+      const str = String(value || "");
+      return `"${str.replace(/"/g, '""')}"`;
+    });
+
+    return `${columns.join(",")}\n${escaped.join(",")}`;
+  };
+
+  const downloadCsv = () => {
+    const csv = getCsvContent();
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.setAttribute("download", `${ticket?.title || "ticket"}-${ticket?.id || "ticket"}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const printTicket = () => {
+    const createdDateText = ticket?.createdAt?.toDate ? ticket.createdAt.toDate().toLocaleDateString() : "";
+    const assignedLabel = ticket?.assignedToName
+      ? ticket.assignedToName
+      : ticket?.assignedToEmail
+      ? ticket.assignedToEmail
+      : "Unassigned";
+
+    const printWindow = window.open("", "_blank", "width=800,height=600");
+    if (!printWindow) return;
+
+    const html = `
+      <html>
+        <head>
+          <title>Print Ticket</title>
+          <style>
+            body { font-family: system-ui, sans-serif; margin: 24px; color: #111827; }
+            h1 { font-size: 24px; margin-bottom: 16px; }
+            p { margin: 8px 0; line-height: 1.5; }
+            .label { font-weight: 700; }
+            .value { margin-left: 4px; }
+          </style>
+        </head>
+        <body>
+          <h1>Ticket ${ticket?.id || ""}</h1>
+          <p><span class="label">Title:</span><span class="value">${title || ""}</span></p>
+          <p><span class="label">Status:</span><span class="value">${status || ""}</span></p>
+          <p><span class="label">Priority:</span><span class="value">${priority || ""}</span></p>
+          <p><span class="label">Created By:</span><span class="value">${ticket?.createdByEmail || ticket?.createdBy || ""}</span></p>
+          <p><span class="label">Assigned To:</span><span class="value">${assignedLabel}</span></p>
+          <p><span class="label">Created:</span><span class="value">${createdDateText}</span></p>
+          <hr style="margin: 20px 0;" />
+          <p><span class="label">Description:</span></p>
+          <p>${(description || "").replace(/\n/g, "<br />")}</p>
+          <script>
+            window.onload = function() {
+              window.print();
+              window.onafterprint = window.close;
+            };
+          </script>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+  };
 
   // ================= LOAD USERS =================
   useEffect(() => {
@@ -251,25 +347,55 @@ export default function TicketModal({
         </div>
 
         {/* FOOTER */}
-        <div className={`border-t ${border} p-5 flex justify-end gap-3`}>
-          <button
-            onClick={onClose}
-            className={`px-5 py-2 rounded-lg text-sm font-medium transition ${
-              darkMode
-                ? "bg-gray-800 hover:bg-gray-700 text-gray-200"
-                : "bg-gray-100 hover:bg-gray-200 text-gray-700"
-            }`}
-          >
-            Cancel
-          </button>
+        <div className={`border-t ${border} p-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between`}>
+          <div className="flex flex-wrap items-center gap-2">
+            {isApproved && (
+              <>
+                <button
+                  type="button"
+                  onClick={downloadCsv}
+                  className="inline-flex items-center gap-2 rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-600"
+                  title="Export approved ticket as CSV"
+                >
+                  <DownloadCloud size={16} />
+                  Export CSV
+                </button>
 
-          <button
-            disabled={loading}
-            onClick={handleSave}
-            className="px-5 py-2 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50 transition"
-          >
-            {loading ? "Saving..." : "Save Changes"}
-          </button>
+                <button
+                  type="button"
+                  onClick={printTicket}
+                  className="inline-flex items-center gap-2 rounded-lg bg-violet-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-violet-600"
+                  title="Print approved ticket"
+                >
+                  <Printer size={16} />
+                  Print Ticket
+                </button>
+              </>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 justify-end">
+            <button
+              type="button"
+              onClick={onClose}
+              className={`px-5 py-2 rounded-lg text-sm font-medium transition ${
+                darkMode
+                  ? "bg-gray-800 hover:bg-gray-700 text-gray-200"
+                  : "bg-gray-100 hover:bg-gray-200 text-gray-700"
+              }`}
+            >
+              Cancel
+            </button>
+
+            <button
+              type="button"
+              disabled={loading}
+              onClick={handleSave}
+              className="px-5 py-2 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50 transition"
+            >
+              {loading ? "Saving..." : "Save Changes"}
+            </button>
+          </div>
         </div>
       </div>
     </div>
