@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { DownloadCloud, Printer, X, Ticket as TicketIcon, Clock, CheckCircle2, XCircle } from "lucide-react";
+import { DownloadCloud, Printer, X, Ticket as TicketIcon, Clock, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import {
   updateTicket,
   assignTicket,
@@ -27,6 +27,8 @@ export default function TicketModal({
   const isAdmin = role === "admin";
 
   const [loading, setLoading] = useState(false);
+  const [exportLoading, setExportLoading] = useState(false);
+  const [printLoading, setPrintLoading] = useState(false);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -69,30 +71,47 @@ export default function TicketModal({
     return `${columns.join(",")}\n${escaped.join(",")}`;
   };
 
-  const downloadCsv = () => {
-    const csv = getCsvContent();
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
+  const downloadCsv = async () => {
+    try {
+      setExportLoading(true);
 
-    link.href = url;
-    link.setAttribute("download", `${ticket?.title || "ticket"}-${ticket?.id || "ticket"}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+      const csv = getCsvContent();
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+
+      // Try to use native Share API for mobile if available
+      if (navigator.canShare && navigator.canShare({ files: [new File([blob], 'export.csv', { type: blob.type })] })) {
+        try {
+          const file = new File([blob], `${ticket?.title || "ticket"}-${ticket?.id || "ticket"}.csv`, { type: blob.type });
+          await navigator.share({ files: [file], title: ticket?.title || "Ticket export" });
+          return;
+        } catch (err) {
+          // fall back to download
+          console.debug('Share failed, falling back to download:', err);
+        }
+      }
+
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+
+      link.href = url;
+      link.setAttribute("download", `${ticket?.title || "ticket"}-${ticket?.id || "ticket"}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+    } finally {
+      setExportLoading(false);
+    }
   };
 
-  const printTicket = () => {
+  const printTicket = async () => {
     const createdDateText = ticket?.createdAt?.toDate ? ticket.createdAt.toDate().toLocaleDateString() : "";
     const assignedLabel = ticket?.assignedToName
       ? ticket.assignedToName
       : ticket?.assignedToEmail
       ? ticket.assignedToEmail
       : "Unassigned";
-
-    const printWindow = window.open("", "_blank", "width=800,height=600");
-    if (!printWindow) return;
 
     const html = `
       <html>
@@ -127,9 +146,56 @@ export default function TicketModal({
       </html>
     `;
 
-    printWindow.document.open();
-    printWindow.document.write(html);
-    printWindow.document.close();
+    // Try to open print window. On mobile some browsers block popups — in that case
+    // write content into a temporary iframe and call print from the main window.
+    try {
+      const printWindow = window.open("", "_blank", "width=800,height=600");
+      if (printWindow) {
+        printWindow.document.open();
+        printWindow.document.write(html);
+        printWindow.document.close();
+        return;
+      }
+    } catch (err) {
+      console.debug('Popup blocked, will attempt iframe print fallback', err);
+    }
+
+    // iframe fallback
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    document.body.appendChild(iframe);
+    const idoc = iframe.contentWindow?.document || iframe.contentDocument;
+    if (idoc) {
+      idoc.open();
+      idoc.write(html);
+      idoc.close();
+      // Give the iframe a moment to render before printing
+      setTimeout(() => {
+        try {
+          iframe.contentWindow?.focus();
+          iframe.contentWindow?.print();
+        } catch (e) {
+          console.debug('iframe print failed', e);
+        } finally {
+          document.body.removeChild(iframe);
+        }
+      }, 500);
+    }
+  };
+
+  const handlePrint = async () => {
+    try {
+      setPrintLoading(true);
+      await printTicket();
+    } finally {
+      // Allow small delay to keep button state during printing
+      setTimeout(() => setPrintLoading(false), 700);
+    }
   };
 
   // ================= LOAD USERS =================
@@ -354,21 +420,23 @@ export default function TicketModal({
                 <button
                   type="button"
                   onClick={downloadCsv}
-                  className="inline-flex items-center gap-2 rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-600"
+                  disabled={exportLoading}
+                  className="inline-flex items-center gap-2 rounded-lg bg-emerald-500 px-3 py-2 text-sm font-medium text-white transition hover:bg-emerald-600 disabled:opacity-60"
                   title="Export approved ticket as CSV"
                 >
-                  <DownloadCloud size={16} />
-                  Export CSV
+                  {exportLoading ? <Loader2 className="animate-spin" size={16} /> : <DownloadCloud size={16} />}
+                  <span className="hidden sm:inline">Export CSV</span>
                 </button>
 
                 <button
                   type="button"
-                  onClick={printTicket}
-                  className="inline-flex items-center gap-2 rounded-lg bg-violet-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-violet-600"
+                  onClick={handlePrint}
+                  disabled={printLoading}
+                  className="inline-flex items-center gap-2 rounded-lg bg-violet-500 px-3 py-2 text-sm font-medium text-white transition hover:bg-violet-600 disabled:opacity-60"
                   title="Print approved ticket"
                 >
-                  <Printer size={16} />
-                  Print Ticket
+                  {printLoading ? <Loader2 className="animate-spin" size={16} /> : <Printer size={16} />}
+                  <span className="hidden sm:inline">Print Ticket</span>
                 </button>
               </>
             )}
