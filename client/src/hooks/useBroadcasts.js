@@ -49,7 +49,6 @@ export default function useBroadcasts(isAdmin) {
     };
   }, [isAdmin]);
 
-  // One-way channel: only regular users accumulate "unread from admin".
   const unreadCount = isAdmin
     ? 0
     : messages.filter((m) => toMillis(m.createdAt) > toMillis(lastSeenAt)).length;
