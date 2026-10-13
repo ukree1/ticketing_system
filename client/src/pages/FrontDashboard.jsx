@@ -1,12 +1,14 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { db } from "../firebase"; // <-- change to wherever your Firebase "db" is exported
 
 /* ------------------------------------------------------------------
    CONFIG — change these to match your existing routes / services
 ------------------------------------------------------------------- */
 const LOGIN_ROUTE = "/login";
 const SUBMIT_TICKET_ROUTE = null; // e.g. "/tickets" — null hides the button
-const CONTACT_ENDPOINT = null; // your backend / email service URL. null = not connected
+const CONTACT_COLLECTION = "contactMessages"; // Firestore collection that stores contact messages
 const CONTACT_INFO = null; // e.g. { email: "...", phone: "...", location: "..." }
 
 const NAV = [
@@ -83,7 +85,8 @@ export default function FrontDashboard() {
   const [theme, setTheme] = useState(getInitialTheme);
   const [menuOpen, setMenuOpen] = useState(false);
   const [openFaq, setOpenFaq] = useState(0);
-  const [form, setForm] = useState({ name: "", email: "", subject: "", message: "" });
+  const [form, setForm] = useState({ name: "", email: "", subject: "", message: "", website: "" });
+  const [sending, setSending] = useState(false);
   const [errors, setErrors] = useState({});
   const [status, setStatus] = useState(null);
 
@@ -109,22 +112,24 @@ export default function FrontDashboard() {
     setErrors(e);
     setStatus(null);
     if (Object.keys(e).length) return;
+    if (form.website) return; // honeypot: real users never fill this hidden field
 
-    if (!CONTACT_ENDPOINT) {
-      setStatus({ type: "info", text: "Your message was not sent. Message delivery requires backend integration, which is not connected yet." });
-      return;
-    }
     try {
-      const res = await fetch(CONTACT_ENDPOINT, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+      setSending(true);
+      await addDoc(collection(db, CONTACT_COLLECTION), {
+        name: form.name.trim(),
+        email: form.email.trim(),
+        subject: form.subject.trim(),
+        message: form.message.trim(),
+        createdAt: serverTimestamp(),
       });
-      if (!res.ok) throw new Error();
       setStatus({ type: "ok", text: "Message sent. We will get back to you soon." });
-      setForm({ name: "", email: "", subject: "", message: "" });
-    } catch {
+      setForm({ name: "", email: "", subject: "", message: "", website: "" });
+    } catch (err) {
+      console.error(err);
       setStatus({ type: "error", text: "Message could not be sent. Please try again later." });
+    } finally {
+      setSending(false);
     }
   };
 
@@ -293,8 +298,9 @@ export default function FrontDashboard() {
                 aria-invalid={!!errors.message} aria-describedby={errors.message ? "ze-message-e" : undefined} />
               {errors.message && <span className="ze-err" id="ze-message-e">{errors.message}</span>}
             </div>
+            <input className="ze-hp" type="text" name="website" tabIndex={-1} autoComplete="off" aria-hidden="true" value={form.website} onChange={set("website")} />
             {status && <div className={`ze-status ${status.type}`} role="status">{status.text}</div>}
-            <button type="submit" className="ze-btn ze-btn-primary">Send Message</button>
+            <button type="submit" className="ze-btn ze-btn-primary" disabled={sending}>{sending ? "Sending..." : "Send Message"}</button>
           </form>
         </div>
       </section>
@@ -506,6 +512,8 @@ html{scroll-behavior:smooth}
 .ze-status.ok{background:#dcfce7;color:#166534}
 .ze-status.error{background:#fee2e2;color:#991b1b}
 .ze-form .ze-btn{justify-self:start}
+.ze-form .ze-btn:disabled{opacity:.65;cursor:not-allowed}
+.ze-hp{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
 
 /* footer */
 .ze-footer{background:var(--foot);color:#cfc8e6;padding:72px 0 28px}
