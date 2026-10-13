@@ -1,13 +1,14 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 
+import FrontDashboard from "../pages/FrontDashboard"; // ✅ NEW HOMEPAGE
 import Login from "../pages/Login";
 import Dashboard from "../pages/Dashboard";
 import Tickets from "../pages/Tickets";
 import Users from "../pages/Users";
 import Profile from "../pages/Profile";
 import Settings from "../pages/Settings";
-import NotificationsPage from "../pages/NotificationsPage"; // ✅ ADD THIS
-import Messages from "../pages/Messages"; // ✅ ADD THIS
+import NotificationsPage from "../pages/NotificationsPage";
+import Messages from "../pages/Messages";
 
 import ProtectedRoute from "./ProtectedRoute";
 
@@ -17,7 +18,7 @@ export default function AppRoutes() {
       <Routes>
 
         {/* ================= PUBLIC ROUTES ================= */}
-        <Route path="/" element={<Login />} />
+        <Route path="/" element={<FrontDashboard />} /> {/* ✅ homepage */}
         <Route path="/login" element={<Login />} />
 
         {/* ================= PROTECTED (USER + ADMIN) ================= */}
@@ -39,7 +40,7 @@ export default function AppRoutes() {
           }
         />
 
-        {/* 🔔 NOTIFICATIONS ROUTE (FIXED) */}
+        {/* 🔔 NOTIFICATIONS ROUTE */}
         <Route
           path="/notifications"
           element={
